@@ -14,8 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   void _login() {
-    if (_userController.text == 'ao' &&
-        _passController.text == 'ao@liveaudit') {
+    if (_userController.text == 'admin' && _passController.text == 'admin') {
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
