@@ -48,7 +48,7 @@ class PdfService {
               style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
             ),
           ),
-
+          pw.SizedBox(height: 20),
           // ──────────────────────────────────────────────────────────
           // TEAM INFORMATION: “Name of the Team Members” (left)  +  “Team No/Date/Time” (right bordered)
           // ──────────────────────────────────────────────────────────
@@ -636,8 +636,12 @@ class PdfService {
   // ─────────────────────────────────────────────────────────────
   // Helper: Extract only the “YYYY-MM-DD” part from “YYYY-MM-DD HH:MM:SS”
   static String _extractDatePart(dynamic dateField) {
-    if (dateField is String && dateField.contains(' ')) {
-      return dateField.split(' ')[0];
+    if (dateField is String) {
+      final parts = dateField.split(' ');
+      if (parts.length >= 4) {
+        // Join everything except the last two tokens (time + AM/PM)
+        return parts.sublist(0, parts.length - 2).join(' ');
+      }
     }
     return dateField?.toString() ?? '';
   }
@@ -645,9 +649,12 @@ class PdfService {
   // ─────────────────────────────────────────────────────────────
   // Helper: Extract the “HH:MM:SS” (or “HH:MM”) part from “YYYY-MM-DD HH:MM:SS”
   static String _extractTimePart(dynamic dateField) {
-    if (dateField is String && dateField.contains(' ')) {
+    if (dateField is String) {
       final parts = dateField.split(' ');
-      if (parts.length >= 2) return parts[1];
+      if (parts.length >= 2) {
+        // Join only the last two tokens (time + AM/PM)
+        return parts.sublist(parts.length - 2).join(' ');
+      }
     }
     return '';
   }
