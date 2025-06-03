@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class PdfService {
   /// Generates the “Checklist for Beneficiary Audit” PDF in A4 portrait.
@@ -630,7 +632,191 @@ class PdfService {
       ),
     );
 
+    // Define which JSON fields map to which headings:
+    final List<Map<String, String>> imageFields = [
+      {'heading': 'Patient photo with PMJAY card', 'key': 'patient_photo'},
+      {'heading': 'Patient PMJAY card', 'key': 'pmjay_card'},
+      {'heading': 'Admission slip', 'key': 'admission_slip_yes'},
+      {
+        'heading': 'Receipt proof (out-of-pocket expenses)',
+        'key': 'receipt_oope',
+      },
+      {
+        'heading': 'Complaint proof (out-of-pocket expenses)',
+        'key': 'complaint_oope',
+      },
+      {'heading': 'Pharmacy register', 'key': 'pharm_reg'},
+      {'heading': 'Lab register/X ray/USG', 'key': 'lab_reg'},
+    ];
+
+    // (4) PRE-FETCH all image bytes
+    final List<Map<String, dynamic>> fetchedImages = [];
+    for (final field in imageFields) {
+      final heading = field['heading']!;
+      final keyName = field['key']!;
+      final rawUrl = data[keyName] as String?;
+      final Uint8List? imgBytes = await _fetchImageBytes(rawUrl);
+      fetchedImages.add({'heading': heading, 'bytes': imgBytes});
+    }
+
+    // (5) Build page 3 if we have at least one valid image
+    final bool hasAnyImage = fetchedImages.any((row) => row['bytes'] != null);
+    if (hasAnyImage) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+          build: (context) {
+            final List<pw.TableRow> rows = [];
+            for (final row in fetchedImages) {
+              final heading = row['heading'] as String;
+              final bytes = row['bytes'] as Uint8List?;
+
+              // ←⎯⎯⎯ Add this guard: only insert valid PNG/JPEG
+              if (bytes != null && _isSupportedImage(bytes)) {
+                rows.add(
+                  pw.TableRow(
+                    verticalAlignment: pw.TableCellVerticalAlignment.middle,
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text(
+                          heading,
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Image(
+                          pw.MemoryImage(bytes),
+                          width: 90,
+                          height: 90,
+                          fit: pw.BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                // even if bytes is null OR not a valid image, still add a row with “No image provided”
+                rows.add(
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text(
+                          heading,
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text(
+                          '(No image provided)',
+                          style: pw.TextStyle(
+                            fontSize: 11,
+                            fontStyle: pw.FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                rows.add(
+                  pw.TableRow(
+                    children: [
+                      pw.SizedBox(height: 12),
+                      pw.SizedBox(height: 12),
+                    ],
+                  ),
+                );
+              }
+            }
+
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Align(
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    'Attached Images',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 16),
+                if (rows.isEmpty)
+                  pw.Text('(No images to display)')
+                else
+                  pw.Table(
+                    border: pw.TableBorder.all(
+                      width: 0.5,
+                      color: PdfColors.grey,
+                    ),
+                    columnWidths: const {
+                      0: pw.FlexColumnWidth(2),
+                      1: pw.FlexColumnWidth(5),
+                    },
+                    children: rows,
+                  ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
     return pdf.save();
+  }
+
+  static final String _basicAuthCredentials =
+      'Basic ${base64Encode(utf8.encode('adri.project@adriindia.org:Adri@2025'))}';
+
+  static Future<Uint8List?> _fetchImageBytes(String? url) async {
+    if (url == null) return null;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty || trimmed == '0') return null;
+
+    try {
+      final response = await http.get(
+        Uri.parse(trimmed),
+        headers: {'Authorization': _basicAuthCredentials},
+      );
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+    } catch (_) {
+      // ignore errors
+    }
+    return null;
+  }
+
+  /// Returns true if [bytes] begin with a known PNG or JPEG signature.
+  static bool _isSupportedImage(Uint8List bytes) {
+    // PNG: 0x89 0x50 0x4E 0x47
+    if (bytes.length > 4 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return true;
+    }
+    // JPEG: 0xFF 0xD8 … 0xFF 0xD9
+    if (bytes.length > 2 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[bytes.length - 1] == 0xD9) {
+      return true;
+    }
+    return false;
   }
 
   // ─────────────────────────────────────────────────────────────
