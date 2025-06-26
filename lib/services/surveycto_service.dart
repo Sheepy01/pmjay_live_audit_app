@@ -37,4 +37,32 @@ class SurveyCTOService {
     }
     return null;
   }
+
+  static Future<Map<String, dynamic>?> findRecordByHospitalAndDate(
+    String hospitalId,
+    String date,
+  ) async {
+    final data = await fetchFormData();
+    for (final entry in data) {
+      final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryDateRaw = (entry['date'] ?? '').toString().trim();
+
+      // Extract only the date part (yyyy-MM-dd) for comparison
+      String entryDate = '';
+      if (entryDateRaw.isNotEmpty) {
+        // Try to parse and format to yyyy-MM-dd
+        try {
+          final parts = entryDateRaw.split(' ');
+          if (parts.isNotEmpty) {
+            entryDate = parts[0];
+          }
+        } catch (_) {}
+      }
+
+      if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
+        return entry;
+      }
+    }
+    return null;
+  }
 }

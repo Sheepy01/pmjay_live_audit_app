@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/surveycto_service.dart';
 import 'package:printing/printing.dart';
 import '../services/pdf_service.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,9 +14,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _hospitalIdController = TextEditingController();
   final _patientIdController = TextEditingController();
+  final _dateController = TextEditingController();
+
   Map<String, dynamic>? _record;
   bool _loading = false;
   String? _error;
+
+  String _auditType = 'Hospital and Patient Audit';
+
+  Future<void> _pickDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
 
   Future<void> _runSearch() async {
     setState(() {
@@ -24,10 +43,19 @@ class _HomeScreenState extends State<HomeScreen> {
       _record = null;
     });
     try {
-      final record = await SurveyCTOService.findRecord(
-        _hospitalIdController.text,
-        _patientIdController.text,
-      );
+      Map<String, dynamic>? record;
+      if (_auditType == 'Hospital and Patient Audit') {
+        record = await SurveyCTOService.findRecord(
+          _hospitalIdController.text,
+          _patientIdController.text,
+        );
+      } else {
+        // Hospital Audit: use hospital ID and date
+        record = await SurveyCTOService.findRecordByHospitalAndDate(
+          _hospitalIdController.text,
+          _dateController.text,
+        );
+      }
       if (record != null) {
         setState(() {
           _record = record;
@@ -74,31 +102,76 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Enter Hospital ID and Patient ID',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: _hospitalIdController,
+                    // Dropdown menu
+                    DropdownButtonFormField<String>(
+                      value: _auditType,
                       decoration: const InputDecoration(
-                        labelText: 'Hospital ID',
+                        labelText: 'Audit Type',
                         border: OutlineInputBorder(),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _patientIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Patient ID',
-                        border: OutlineInputBorder(),
-                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Hospital and Patient Audit',
+                          child: Text('Hospital and Patient Audit'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Hospital Audit',
+                          child: Text('Hospital Audit'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _auditType = value!;
+                          // Clear fields when switching
+                          _hospitalIdController.clear();
+                          _patientIdController.clear();
+                          _dateController.clear();
+                        });
+                      },
                     ),
                     const SizedBox(height: 24),
+
+                    // Dynamic form fields
+                    if (_auditType == 'Hospital and Patient Audit') ...[
+                      TextField(
+                        controller: _hospitalIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Hospital ID',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _patientIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Patient ID',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ] else ...[
+                      TextField(
+                        controller: _hospitalIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Hospital ID',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _dateController,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Date',
+                          border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.calendar_today),
+                        ),
+                        onTap: () => _pickDate(context),
+                      ),
+                    ],
+
+                    const SizedBox(height: 24),
+                    // ...rest of your button and result widgets...
+                    // (No changes needed below this line)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
