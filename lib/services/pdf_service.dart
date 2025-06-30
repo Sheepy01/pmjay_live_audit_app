@@ -525,7 +525,7 @@ class PdfService {
                 3,
                 'Admission slip / Discharge summary sheet (if any)',
                 data['admission_slip'] as String?,
-                remark: data['admission_slip_yes'] as String?,
+                // remark: data['admission_slip_yes'] as String?,
               ),
 
               // 4. In case of out-of-pocket expenses:\n If any money taken, a) attached receipt proof, b) Written and signed…
@@ -945,7 +945,7 @@ class PdfService {
         _buildChecklistCell(particular, wrap: true),
         _buildChecklistCell(yesText),
         _buildChecklistCell(noText),
-        _buildChecklistCell(remarkText),
+        _buildChecklistCell(remarkText, wrap: true),
       ],
     );
   }
@@ -993,7 +993,7 @@ class PdfService {
         _buildChecklistCell(srNo.toString()),
         _buildChecklistCell(documentName, wrap: true),
         _buildChecklistCell(tickText),
-        _buildChecklistCell(remark ?? ''),
+        _buildChecklistCell(remark ?? '', wrap: true),
       ],
     );
   }

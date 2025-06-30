@@ -11,7 +11,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _hospitalIdController = TextEditingController();
   final _patientIdController = TextEditingController();
   final _dateController = TextEditingController();
@@ -98,164 +98,186 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 4,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: SingleChildScrollView(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Dropdown menu
-                    DropdownButtonFormField<String>(
-                      value: _auditType,
-                      decoration: const InputDecoration(
-                        labelText: 'Audit Type',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Hospital and Patient Audit',
-                          child: Text('Hospital and Patient Audit'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Hospital Audit',
-                          child: Text('Hospital Audit'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _auditType = value!;
-                          // Clear fields when switching
-                          _hospitalIdController.clear();
-                          _patientIdController.clear();
-                          _dateController.clear();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Dynamic form fields
-                    if (_auditType == 'Hospital and Patient Audit') ...[
-                      TextField(
-                        controller: _hospitalIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'Hospital ID',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _patientIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'Patient ID',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ] else ...[
-                      TextField(
-                        controller: _hospitalIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'Hospital ID',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _dateController,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Date',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today),
-                        ),
-                        onTap: () => _pickDate(context),
-                      ),
-                    ],
-
-                    const SizedBox(height: 24),
-                    // ...rest of your button and result widgets...
-                    // (No changes needed below this line)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Run'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        onPressed: _loading ? null : _runSearch,
-                      ),
-                    ),
-                    if (_loading) ...[
-                      const SizedBox(height: 16),
-                      const CircularProgressIndicator(),
-                    ],
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ],
-                    if (_record != null) ...[
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Fetched Data:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 200,
-                        child: ListView(
-                          shrinkWrap: true,
-                          children: _record!.entries
-                              .map(
-                                (e) => Padding(
+                    // Scrollable content
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Dropdown menu
+                            DropdownButtonFormField<String>(
+                              value: _auditType,
+                              decoration: const InputDecoration(
+                                labelText: 'Audit Type',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Hospital and Patient Audit',
+                                  child: Text('Hospital and Patient Audit'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Hospital Audit',
+                                  child: Text('Hospital Audit'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _auditType = value!;
+                                  _hospitalIdController.clear();
+                                  _patientIdController.clear();
+                                  _dateController.clear();
+                                  _record = null;
+                                  _error = null;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            // Dynamic form fields
+                            if (_auditType == 'Hospital and Patient Audit') ...[
+                              TextField(
+                                controller: _hospitalIdController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Hospital ID',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _patientIdController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Case NO',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ] else ...[
+                              TextField(
+                                controller: _hospitalIdController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Hospital ID',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _dateController,
+                                readOnly: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Date',
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.calendar_today),
+                                ),
+                                onTap: () => _pickDate(context),
+                              ),
+                            ],
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Run'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 2,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "${e.key}: ",
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Expanded(child: Text("${e.value ?? ''}")),
-                                    ],
+                                    vertical: 14,
                                   ),
                                 ),
-                              )
-                              .toList(),
+                                onPressed: _loading ? null : _runSearch,
+                              ),
+                            ),
+                            if (_loading) ...[
+                              const SizedBox(height: 16),
+                              const CircularProgressIndicator(),
+                            ],
+                            if (_error != null) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                _error!,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ],
+                            if (_record != null) ...[
+                              const SizedBox(height: 24),
+                              const Text(
+                                'Fetched Data:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 250,
+                                ),
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  children: _record!.entries
+                                      .map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 2,
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "${e.key}: ",
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Text("${e.value ?? ''}"),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        icon: const Icon(
-                          Icons.picture_as_pdf,
-                          color: Colors.white,
-                        ),
-                        label: const Text('Download PDF'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 15,
+                    ),
+                    // Fixed Download PDF button at the bottom of the card
+                    if (_record != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.white,
                           ),
+                          label: const Text('Download PDF'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 15,
+                            ),
+                          ),
+                          onPressed: () async {
+                            final pdfData =
+                                await PdfService.generateAuditReport(_record!);
+                            await Printing.layoutPdf(
+                              onLayout: (format) async => pdfData,
+                            );
+                          },
                         ),
-                        onPressed: () async {
-                          final pdfData = await PdfService.generateAuditReport(
-                            _record!,
-                          );
-                          await Printing.layoutPdf(
-                            onLayout: (format) async => pdfData,
-                          );
-                        },
                       ),
-                    ],
                   ],
                 ),
               ),

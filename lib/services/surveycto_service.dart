@@ -26,12 +26,12 @@ class SurveyCTOService {
 
   static Future<Map<String, dynamic>?> findRecord(
     String hospitalId,
-    String patientId,
+    String caseNo,
   ) async {
     final data = await fetchFormData();
     for (final entry in data) {
       if ((entry['hospital_id'] ?? '').toString().trim() == hospitalId.trim() &&
-          (entry['patient_id'] ?? '').toString().trim() == patientId.trim()) {
+          (entry['case_no'] ?? '').toString().trim() == caseNo.trim()) {
         return entry;
       }
     }
