@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:intl/intl.dart';
 
 class PdfService {
   /// Generates the “Checklist for Beneficiary Audit” PDF in A4 portrait.
@@ -31,6 +32,26 @@ class PdfService {
     // 2) Create the PDF Document using that theme
     // ─────────────────────────────────────────────────────────────
     final pdf = pw.Document(theme: theme);
+
+    // Helper for IST time
+    String _extractTimeIst(dynamic dateField) {
+      if (dateField is String) {
+        // Try parsing with DateFormat for "Jul 3, 2025 6:24:00 AM"
+        try {
+          final dt = DateFormat('MMM d, yyyy h:mm:ss a').parseUtc(dateField);
+          final ist = dt.add(const Duration(hours: 5, minutes: 30));
+          return '${ist.hour.toString().padLeft(2, '0')}:${ist.minute.toString().padLeft(2, '0')} IST';
+        } catch (_) {
+          // fallback: try default parsing
+          final utc = DateTime.tryParse(dateField)?.toUtc();
+          if (utc != null) {
+            final ist = utc.add(const Duration(hours: 5, minutes: 30));
+            return '${ist.hour.toString().padLeft(2, '0')}:${ist.minute.toString().padLeft(2, '0')} IST';
+          }
+        }
+      }
+      return '';
+    }
 
     // ─────────────────────────────────────────────────────────────
     // 3) Build the PDF page(s)
@@ -116,7 +137,7 @@ class PdfService {
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(4),
                           child: pw.Text(
-                            'Time: ${_extractTimePart(data['date'])}',
+                            'Time: ${_extractTimeIst(data['date'])}',
                             style: pw.TextStyle(fontSize: 11),
                           ),
                         ),
@@ -201,13 +222,29 @@ class PdfService {
               ),
 
               // 1. PACKAGE BOOKED
-              _buildChecklistRow(
-                1,
-                'PACKAGE BOOKED (Mention the name of Package Booked)',
-                value: data['package_name'] as String?,
-                remark: data['package_name_re'] as String?,
-                isBoolean: false,
-              ),
+              (() {
+                final hasPackage = (data['package_name'] ?? '')
+                    .toString()
+                    .trim()
+                    .isNotEmpty;
+                final yesText = hasPackage ? 'Yes' : '';
+                final noText = hasPackage ? '' : 'No';
+                final remarks = hasPackage
+                    ? (data['package_name'] ?? '')
+                    : (data['package_name_re'] ?? '');
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('1'),
+                    _buildChecklistCell(
+                      'PACKAGE BOOKED (Mention the name of Package Booked)',
+                      wrap: true,
+                    ),
+                    _buildChecklistCell(yesText),
+                    _buildChecklistCell(noText),
+                    _buildChecklistCell(remarks.toString(), wrap: true),
+                  ],
+                );
+              })(),
 
               // 2. Name of the treating Doctor
               _buildChecklistRow(
@@ -399,13 +436,27 @@ class PdfService {
               ),
 
               // 23. Any other remark or observation
-              _buildChecklistRow(
-                23,
-                'Any other remark or observation',
-                value: data['oth_remarks'] as String?,
-                remark: '',
-                isBoolean: false,
-              ),
+              (() {
+                final othRemarks = (data['oth_remarks'] ?? '')
+                    .toString()
+                    .trim();
+                final hasRemark = othRemarks.isNotEmpty;
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('23'),
+                    _buildChecklistCell(
+                      'Any other remark or observation',
+                      wrap: true,
+                    ),
+                    _buildChecklistCell(hasRemark ? 'Yes' : ''),
+                    _buildChecklistCell(hasRemark ? '' : 'No'),
+                    _buildChecklistCell(
+                      hasRemark ? othRemarks : '',
+                      wrap: true,
+                    ),
+                  ],
+                );
+              })(),
             ],
           ),
           pw.SizedBox(height: 12),
@@ -505,20 +556,43 @@ class PdfService {
               ),
 
               // 1. Patient photo with PMJAY card
-              _buildAttachedDocRow(
-                1,
-                'Patient photo with PMJAY card',
-                data['patient_photo'] as String?,
-                remark: data['patient_photo_re'] as String?,
-              ),
+              (() {
+                final tick = (data['patient_photo'] ?? '').toString().isNotEmpty
+                    ? 'Yes'
+                    : 'No';
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('1'),
+                    _buildChecklistCell(
+                      'Patient photo with PMJAY card',
+                      wrap: true,
+                    ),
+                    _buildChecklistCell(tick),
+                    _buildChecklistCell(
+                      data['patient_photo_re'] ?? '',
+                      wrap: true,
+                    ),
+                  ],
+                );
+              })(),
 
               // 2. Patient PMJAY card
-              _buildAttachedDocRow(
-                2,
-                'Patient PMJAY card',
-                data['pmjay_card'] as String?,
-                remark: data['pmjay_card_re'] as String?,
-              ),
+              (() {
+                final tick = (data['pmjay_card'] ?? '').toString().isNotEmpty
+                    ? 'Yes'
+                    : 'No';
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('2'),
+                    _buildChecklistCell('Patient PMJAY card', wrap: true),
+                    _buildChecklistCell(tick),
+                    _buildChecklistCell(
+                      data['pmjay_card_re'] ?? '',
+                      wrap: true,
+                    ),
+                  ],
+                );
+              })(),
 
               // 3. Admission slip / Discharge summary sheet (if any)
               _buildAttachedDocRow(
@@ -529,49 +603,42 @@ class PdfService {
               ),
 
               // 4. In case of out-of-pocket expenses:\n If any money taken, a) attached receipt proof, b) Written and signed…
-              pw.TableRow(
-                children: [
-                  _buildChecklistCell('4'),
-                  _buildChecklistCell(
-                    'In case of out-of-pocket expenses:\n'
-                    'If any money taken,\n'
-                    'a) attached receipt proof,\n'
-                    'b) Written and signed (or thumb impression)/video recording in cases of complaints of the beneficiary/attendant along with a witness (Contact numbers are also required)',
-                    wrap: true,
-                  ),
-                  _buildChecklistCell(
-                    (data['out_pocket_ex'] as String? ?? '') == '1'
-                        ? 'Yes'
-                        : 'No',
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(4),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'a) ${(data['receipt_oope'] as String? ?? '') == '1' ? 'Yes' : 'No'}',
-                          style: const pw.TextStyle(fontSize: 10),
-                        ),
-                        pw.Text(
-                          'b) ${(data['complaint_oope'] as String? ?? '') == '1' ? 'Yes' : 'No'}',
-                          style: const pw.TextStyle(fontSize: 10),
-                        ),
-                      ],
+              (() {
+                final outPocket = (data['out_pocket_ex'] ?? '') == '1'
+                    ? 'Yes'
+                    : 'No';
+                final receiptOope =
+                    (data['receipt_oope'] ?? '').toString().isNotEmpty
+                    ? 'a) Yes'
+                    : 'a) No';
+                final complaintOope =
+                    (data['complaint_oope'] ?? '').toString().isNotEmpty
+                    ? 'b) Yes'
+                    : 'b) No';
+                final tickCell = '$outPocket\n$receiptOope\n$complaintOope';
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('4'),
+                    _buildChecklistCell(
+                      'In case of out-of-pocket expenses:\n'
+                      'If any money taken,\n'
+                      'a) attached receipt proof,\n'
+                      'b) Written and signed (or thumb impression)/video recording in cases of complaints of the beneficiary/attendant along with a witness (Contact numbers are also required)',
+                      wrap: true,
                     ),
-                  ),
-                ],
-              ),
-
-              // 5. Visit the pharmacy and check the registers for the medicines dispensed
+                    _buildChecklistCell(tickCell, wrap: true),
+                    _buildChecklistCell('', wrap: true),
+                  ],
+                );
+              })(),
+              // 5. Pharmacy register
               _buildAttachedDocRow(
                 5,
                 'Visit the pharmacy and check the registers for the medicines dispensed',
                 data['pharm_reg'] as String?,
                 remark: data['pharm_reg_re'] as String?,
               ),
-
-              // 6. Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries
+              // 6. Lab register/X ray/USG
               _buildAttachedDocRow(
                 6,
                 'Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries',
@@ -649,127 +716,78 @@ class PdfService {
       {'heading': 'Lab register/X ray/USG', 'key': 'lab_reg'},
     ];
 
-    // (4) PRE-FETCH all image bytes
-    final List<Map<String, dynamic>> fetchedImages = [];
+    // final List<Map<String, dynamic>> fetchedImages = [];
+    final List<String> missingImages = [];
     for (final field in imageFields) {
       final heading = field['heading']!;
       final keyName = field['key']!;
       final rawUrl = data[keyName] as String?;
       final Uint8List? imgBytes = await _fetchImageBytes(rawUrl);
-      fetchedImages.add({'heading': heading, 'bytes': imgBytes});
+      if (imgBytes != null && _isSupportedImage(imgBytes)) {
+        // Add a new page for each image
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  heading,
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 16),
+                pw.Image(pw.MemoryImage(imgBytes), fit: pw.BoxFit.contain),
+              ],
+            ),
+          ),
+        );
+      } else {
+        missingImages.add(heading);
+      }
     }
 
-    // (5) Build page 3 if we have at least one valid image
-    final bool hasAnyImage = fetchedImages.any((row) => row['bytes'] != null);
-    if (hasAnyImage) {
+    // Add a final page for missing images
+    if (missingImages.isNotEmpty) {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-          build: (context) {
-            final List<pw.TableRow> rows = [];
-            for (final row in fetchedImages) {
-              final heading = row['heading'] as String;
-              final bytes = row['bytes'] as Uint8List?;
-
-              // ←⎯⎯⎯ Add this guard: only insert valid PNG/JPEG
-              if (bytes != null && _isSupportedImage(bytes)) {
-                rows.add(
-                  pw.TableRow(
-                    verticalAlignment: pw.TableCellVerticalAlignment.middle,
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(
-                          heading,
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(4),
-                        child: pw.Image(
-                          pw.MemoryImage(bytes),
-                          width: 90,
-                          height: 90,
-                          fit: pw.BoxFit.contain,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                // even if bytes is null OR not a valid image, still add a row with “No image provided”
-                rows.add(
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(
-                          heading,
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(
-                          '(No image provided)',
-                          style: pw.TextStyle(
-                            fontSize: 11,
-                            fontStyle: pw.FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-                rows.add(
-                  pw.TableRow(
-                    children: [
-                      pw.SizedBox(height: 12),
-                      pw.SizedBox(height: 12),
-                    ],
-                  ),
-                );
-              }
-            }
-
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Align(
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    'Attached Images',
-                    style: pw.TextStyle(
-                      fontSize: 16,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Missing Attachments',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
                 ),
-                pw.SizedBox(height: 16),
-                if (rows.isEmpty)
-                  pw.Text('(No images to display)')
-                else
-                  pw.Table(
-                    border: pw.TableBorder.all(
-                      width: 0.5,
-                      color: PdfColors.grey,
-                    ),
-                    columnWidths: const {
-                      0: pw.FlexColumnWidth(2),
-                      1: pw.FlexColumnWidth(5),
-                    },
-                    children: rows,
-                  ),
-              ],
-            );
-          },
+              ),
+              pw.SizedBox(height: 16),
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: missingImages
+                    .map(
+                      (heading) => pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(heading),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text('No image provided'),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -834,16 +852,16 @@ class PdfService {
 
   // ─────────────────────────────────────────────────────────────
   // Helper: Extract the “HH:MM:SS” (or “HH:MM”) part from “YYYY-MM-DD HH:MM:SS”
-  static String _extractTimePart(dynamic dateField) {
-    if (dateField is String) {
-      final parts = dateField.split(' ');
-      if (parts.length >= 2) {
-        // Join only the last two tokens (time + AM/PM)
-        return parts.sublist(parts.length - 2).join(' ');
-      }
-    }
-    return '';
-  }
+  // static String _extractTimePart(dynamic dateField) {
+  //   if (dateField is String) {
+  //     final parts = dateField.split(' ');
+  //     if (parts.length >= 2) {
+  //       // Join only the last two tokens (time + AM/PM)
+  //       return parts.sublist(parts.length - 2).join(' ');
+  //     }
+  //   }
+  //   return '';
+  // }
 
   // ─────────────────────────────────────────────────────────────
   // Map '0' → 'Medical', '1' → 'Surgical'
@@ -983,9 +1001,11 @@ class PdfService {
     String? remark = '',
   }) {
     String tickText = '';
-    if (tickValue == '1')
+    if (tickValue != null &&
+        tickValue.toString().isNotEmpty &&
+        tickValue != '0')
       tickText = 'Yes';
-    else if (tickValue == '0')
+    else
       tickText = 'No';
 
     return pw.TableRow(
