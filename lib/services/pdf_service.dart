@@ -53,6 +53,22 @@ class PdfService {
       return '';
     }
 
+    String _formatDateTimeIst(String? dateField) {
+      if (dateField == null || dateField.trim().isEmpty) return '';
+      try {
+        final dt = DateFormat('MMM d, yyyy h:mm:ss a').parseUtc(dateField);
+        final ist = dt.add(const Duration(hours: 5, minutes: 30));
+        return DateFormat('dd MMM yyyy, HH:mm').format(ist) + ' IST';
+      } catch (_) {
+        final utc = DateTime.tryParse(dateField)?.toUtc();
+        if (utc != null) {
+          final ist = utc.add(const Duration(hours: 5, minutes: 30));
+          return DateFormat('dd MMM yyyy, HH:mm').format(ist) + ' IST';
+        }
+      }
+      return dateField;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // 3) Build the PDF page(s)
     // ─────────────────────────────────────────────────────────────
@@ -268,7 +284,7 @@ class PdfService {
               _buildChecklistRow(
                 4,
                 'Date and time of admission as per the hospital file',
-                value: data['admis_date_time'] as String?,
+                value: _formatDateTimeIst(data['admis_date_time'] as String?),
                 remark: data['admis_date_time_re'] as String?,
                 isBoolean: false,
               ),
@@ -277,7 +293,7 @@ class PdfService {
               _buildChecklistRow(
                 5,
                 'Date and time of discharge as per the hospital file',
-                value: data['dis_date_time'] as String?,
+                value: _formatDateTimeIst(data['dis_date_time'] as String?),
                 remark: data['dis_date_time_re'] as String?,
                 isBoolean: false,
               ),
@@ -835,6 +851,54 @@ class PdfService {
       return dateField?.toString() ?? '';
     }
 
+    String na() => 'N/A';
+
+    // Checklist questions
+    final checklistQuestions = [
+      'PACKAGE BOOKED (Mention the name of Package Booked)',
+      'Name of the treating Doctor',
+      'Specialization of the treating doctor',
+      'Date and time of admission as per the hospital file',
+      'Date and time of discharge as per the hospital file',
+      'Type of treatment (Medical/Surgical)',
+      'Expected length of stay',
+      'Patient Ids collected',
+      'Patient photograph collected',
+      'What were the complaints presented at the time of admission?',
+      'Since when is he/she suffering from the symptoms',
+      'Was he/she referring from another hospital/clinic/doctor?',
+      'If yes, please name the hospital/clinic/doctor',
+      'When did the patient get admitted?',
+      'Is the patient admitted since then?',
+      'What diagnostic tests (if any) were performed on the patient?',
+      'Was any surgery conducted for the patient?',
+      'If yes, is there a scar on the body?',
+      'Has any money been charged so far?',
+      'If yes, how much?',
+      'Do they have receipts of the same',
+      'Is there any previous hospitalization of same patient at the same hospital?',
+      'Any other remark or observation',
+    ];
+
+    // Additional details questions
+    final additionalDetailsQuestions = [
+      'Is patients name/age in-door records, E card and investigation reports same',
+      'Are presenting symptoms matching the diagnosis',
+      'Is the package booked matching the diagnosis',
+      'Are investigation reports matching the diagnosis?',
+      'Are investigation reports signed by doctor/pathologist with registration no.',
+    ];
+
+    // Attached documents
+    final attachedDocuments = [
+      'Patient photo with PMJAY card',
+      'Patient PMJAY card',
+      'Admission slip / Discharge summary sheet (if any)',
+      'In case of out-of-pocket expenses:\nIf any money taken,\na) attached receipt proof,\nb) Written and signed (or thumb impression)/video recording in cases of complaints of the beneficiary/attendant along with a witness (Contact numbers are also required)',
+      'Visit the pharmacy and check the registers for the medicines dispensed',
+      'Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries',
+    ];
+
     final pdf = pw.Document(theme: theme);
 
     pdf.addPage(
@@ -846,7 +910,7 @@ class PdfService {
           pw.Align(
             alignment: pw.Alignment.center,
             child: pw.Text(
-              'Hospital Audit Report',
+              'Checklist for Beneficiary Audit\n(Live Audit–During Hospitalization)',
               style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
             ),
           ),
@@ -926,7 +990,7 @@ class PdfService {
           ),
           pw.SizedBox(height: 12),
 
-          // HOSPITAL INFORMATION
+          // HOSPITAL & PATIENT INFORMATION (4 columns)
           pw.Table(
             border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
             columnWidths: const {
@@ -942,15 +1006,156 @@ class PdfService {
                 'HOSPITAL ID',
                 data['hospital_id'],
               ),
+              _buildLabelValueRow('CASE NO', na(), 'CARD NO', na()),
               _buildLabelValueRow(
                 'HOSPITAL CONTACT NO',
                 data['hosp_contact'],
-                '',
-                '',
+                'PATIENT NAME',
+                na(),
+              ),
+              _buildLabelValueRow(
+                'PATIENT ADDRESS',
+                na(),
+                'PATIENT/ATTENDANT CONTACT NO',
+                na(),
+              ),
+              _buildLabelValueRow('DIAGNOSIS', na(), 'TREATMENT PLAN', na()),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+
+          // CHECKLIST TABLE (5 columns)
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(0.6),
+              1: pw.FlexColumnWidth(3),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(1),
+              4: pw.FlexColumnWidth(2.5),
+            },
+            children: [
+              // Header row
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  _buildChecklistCell('Sr. No.', bold: true),
+                  _buildChecklistCell('Particulars', bold: true),
+                  _buildChecklistCell('YES', bold: true),
+                  _buildChecklistCell('NO', bold: true),
+                  _buildChecklistCell('REMARKS', bold: true),
+                ],
+              ),
+              for (int i = 0; i < checklistQuestions.length; i++)
+                pw.TableRow(
+                  children: [
+                    _buildChecklistCell((i + 1).toString()),
+                    _buildChecklistCell(checklistQuestions[i], wrap: true),
+                    _buildChecklistCell('N/A'),
+                    _buildChecklistCell('N/A'),
+                    _buildChecklistCell('', wrap: true),
+                  ],
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+
+          // ADDITIONAL DETAILS (4 columns)
+          pw.Text(
+            'ADDITIONAL DETAILS:',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(0.6),
+              1: pw.FlexColumnWidth(4),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(1),
+            },
+            children: [
+              // Header
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  _buildChecklistCell('Sr. No.', bold: true),
+                  _buildChecklistCell('Particulars', bold: true),
+                  _buildChecklistCell('YES', bold: true),
+                  _buildChecklistCell('NO', bold: true),
+                ],
+              ),
+              for (int i = 0; i < additionalDetailsQuestions.length; i++)
+                pw.TableRow(
+                  children: [
+                    _buildChecklistCell((i + 1).toString()),
+                    _buildChecklistCell(
+                      additionalDetailsQuestions[i],
+                      wrap: true,
+                    ),
+                    _buildChecklistCell('N/A'),
+                    _buildChecklistCell('N/A'),
+                  ],
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+
+          // ATTACHED DOCUMENTS (4 columns)
+          pw.Text(
+            'Attached following documents along with audit report:',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(0.5),
+              1: pw.FlexColumnWidth(3.5),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(2),
+            },
+            children: [
+              // Header
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  _buildChecklistCell('S. No.', bold: true),
+                  _buildChecklistCell('Document name', bold: true),
+                  _buildChecklistCell('Tick', bold: true),
+                  _buildChecklistCell('Remarks', bold: true),
+                ],
+              ),
+              for (int i = 0; i < attachedDocuments.length; i++)
+                pw.TableRow(
+                  children: [
+                    _buildChecklistCell((i + 1).toString()),
+                    _buildChecklistCell(attachedDocuments[i], wrap: true),
+                    _buildChecklistCell('N/A'),
+                    _buildChecklistCell('', wrap: true),
+                  ],
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+
+          // “Whether Case is Genuine (YES/NO)” + Signature
+          pw.Row(
+            children: [
+              pw.Text(
+                'Whether Case is Genuine (YES/NO): ',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+              pw.Text(
+                '', // Leave empty
+                style: const pw.TextStyle(fontSize: 11),
               ),
             ],
           ),
-          pw.SizedBox(height: 20),
+          pw.SizedBox(height: 12),
 
           // SIGNIFICANT FINDINGS
           pw.Text(
@@ -968,6 +1173,7 @@ class PdfService {
           ),
           pw.SizedBox(height: 10),
           pw.Text(data['recomm'] ?? '', style: pw.TextStyle(fontSize: 11)),
+
           // SIGNATURE
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.end,
