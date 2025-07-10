@@ -437,7 +437,7 @@ class PdfService {
 
               // 23. Any other remark or observation
               (() {
-                final othRemarks = (data['oth_remarks'] ?? '')
+                final othRemarks = (data['oth_remarks_re'] ?? '')
                     .toString()
                     .trim();
                 final hasRemark = othRemarks.isNotEmpty;
@@ -791,6 +791,196 @@ class PdfService {
         ),
       );
     }
+
+    return pdf.save();
+  }
+
+  static Future<Uint8List> generateHospitalAuditReport(
+    Map<String, dynamic> data,
+  ) async {
+    // Load fonts
+    final ttfRegularData = await rootBundle.load(
+      'assets/fonts/Roboto-Regular.ttf',
+    );
+    final ttfBoldData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
+    final ttfRegular = pw.Font.ttf(ttfRegularData);
+    final ttfBold = pw.Font.ttf(ttfBoldData);
+    final theme = pw.ThemeData.withFont(base: ttfRegular, bold: ttfBold);
+
+    // Helper for IST time
+    String _extractTimeIst(dynamic dateField) {
+      if (dateField is String) {
+        try {
+          final dt = DateFormat('MMM d, yyyy h:mm:ss a').parseUtc(dateField);
+          final ist = dt.add(const Duration(hours: 5, minutes: 30));
+          return '${ist.hour.toString().padLeft(2, '0')}:${ist.minute.toString().padLeft(2, '0')} IST';
+        } catch (_) {
+          final utc = DateTime.tryParse(dateField)?.toUtc();
+          if (utc != null) {
+            final ist = utc.add(const Duration(hours: 5, minutes: 30));
+            return '${ist.hour.toString().padLeft(2, '0')}:${ist.minute.toString().padLeft(2, '0')} IST';
+          }
+        }
+      }
+      return '';
+    }
+
+    String _extractDatePart(dynamic dateField) {
+      if (dateField is String) {
+        final parts = dateField.split(' ');
+        if (parts.length >= 4) {
+          return parts.sublist(0, parts.length - 2).join(' ');
+        }
+      }
+      return dateField?.toString() ?? '';
+    }
+
+    final pdf = pw.Document(theme: theme);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+        build: (context) => [
+          // HEADER
+          pw.Align(
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              'Hospital Audit Report',
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          pw.SizedBox(height: 20),
+
+          // TEAM INFORMATION
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                flex: 2,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Name of the Team Members:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      '1. ${data['team_mem_1'] ?? ''}',
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                    pw.Text(
+                      '2. ${data['team_mem_2'] ?? ''}',
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                flex: 1,
+                child: pw.Table(
+                  border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+                  children: [
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(
+                            'Team No.: ${data['team_no'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(
+                            'Date: ${_extractDatePart(data['date'])}',
+                            style: pw.TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(
+                            'Time: ${_extractTimeIst(data['date'])}',
+                            style: pw.TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+
+          // HOSPITAL INFORMATION
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1),
+              1: pw.FlexColumnWidth(2),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(2),
+            },
+            children: [
+              _buildLabelValueRow(
+                'HOSPITAL NAME',
+                data['hospital_name'],
+                'HOSPITAL ID',
+                data['hospital_id'],
+              ),
+              _buildLabelValueRow(
+                'HOSPITAL CONTACT NO',
+                data['hosp_contact'],
+                '',
+                '',
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 20),
+
+          // SIGNIFICANT FINDINGS
+          pw.Text(
+            'Significant Findings:',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Text(data['sig_find'] ?? '', style: pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 20),
+
+          // RECOMMENDATIONS
+          pw.Text(
+            'Recommendations:',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Text(data['recomm'] ?? '', style: pw.TextStyle(fontSize: 11)),
+          // SIGNATURE
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Text(
+                'Signature of Team members: ______________________',
+                style: pw.TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
 
     return pdf.save();
   }

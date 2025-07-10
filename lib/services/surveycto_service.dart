@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class SurveyCTOService {
   static const String _server = "adri.surveycto.com";
@@ -47,16 +48,21 @@ class SurveyCTOService {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
 
-      // Extract only the date part (yyyy-MM-dd) for comparison
       String entryDate = '';
       if (entryDateRaw.isNotEmpty) {
-        // Try to parse and format to yyyy-MM-dd
         try {
-          final parts = entryDateRaw.split(' ');
-          if (parts.isNotEmpty) {
-            entryDate = parts[0];
+          // Parse SurveyCTO date string like "Jul 10, 2025 5:26:00 AM"
+          final dt = DateFormat(
+            'MMM d, yyyy h:mm:ss a',
+          ).parse(entryDateRaw, true).toLocal();
+          entryDate = DateFormat('yyyy-MM-dd').format(dt);
+        } catch (_) {
+          // fallback: try default parsing
+          final dt = DateTime.tryParse(entryDateRaw);
+          if (dt != null) {
+            entryDate = DateFormat('yyyy-MM-dd').format(dt);
           }
-        } catch (_) {}
+        }
       }
 
       if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {

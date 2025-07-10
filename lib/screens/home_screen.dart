@@ -3,6 +3,7 @@ import '../services/surveycto_service.dart';
 import 'package:printing/printing.dart';
 import '../services/pdf_service.dart';
 import 'package:intl/intl.dart';
+import 'dart:typed_data';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -270,8 +271,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ),
                           ),
                           onPressed: () async {
-                            final pdfData =
-                                await PdfService.generateAuditReport(_record!);
+                            Uint8List pdfData;
+                            if (_auditType == 'Hospital Audit') {
+                              pdfData =
+                                  await PdfService.generateHospitalAuditReport(
+                                    _record!,
+                                  );
+                            } else {
+                              pdfData = await PdfService.generateAuditReport(
+                                _record!,
+                              );
+                            }
                             await Printing.layoutPdf(
                               onLayout: (format) async => pdfData,
                             );
