@@ -16,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _hospitalIdController = TextEditingController();
   final _patientIdController = TextEditingController();
   final _dateController = TextEditingController();
+  bool _downloading = false;
 
   Map<String, dynamic>? _record;
   bool _loading = false;
@@ -66,7 +67,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _error = "No matching record found.";
         });
       }
-    } catch (e) {
+    } catch (e, stack) {
+      print('Error: $e\n$stack');
       setState(() {
         _error = "Error: $e";
       });
@@ -253,7 +255,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     // Fixed Download PDF button at the bottom of the card
-                    if (_record != null)
+                    if (_record != null) ...[
+                      if (_downloading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16.0),
+                          child: LinearProgressIndicator(),
+                        ),
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
                         child: ElevatedButton.icon(
@@ -270,24 +277,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               horizontal: 15,
                             ),
                           ),
-                          onPressed: () async {
-                            Uint8List pdfData;
-                            if (_auditType == 'Hospital Audit') {
-                              pdfData =
-                                  await PdfService.generateHospitalAuditReport(
-                                    _record!,
-                                  );
-                            } else {
-                              pdfData = await PdfService.generateAuditReport(
-                                _record!,
-                              );
-                            }
-                            await Printing.layoutPdf(
-                              onLayout: (format) async => pdfData,
-                            );
-                          },
+                          onPressed: _downloading
+                              ? null
+                              : () async {
+                                  setState(() => _downloading = true);
+                                  try {
+                                    Uint8List pdfData;
+                                    if (_auditType == 'Hospital Audit') {
+                                      pdfData =
+                                          await PdfService.generateHospitalAuditReport(
+                                            _record!,
+                                          );
+                                    } else {
+                                      pdfData =
+                                          await PdfService.generateAuditReport(
+                                            _record!,
+                                          );
+                                    }
+                                    await Printing.layoutPdf(
+                                      onLayout: (format) async => pdfData,
+                                    );
+                                  } finally {
+                                    setState(() => _downloading = false);
+                                  }
+                                },
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),

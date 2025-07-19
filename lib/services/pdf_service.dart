@@ -740,25 +740,38 @@ class PdfService {
       final rawUrl = data[keyName] as String?;
       final Uint8List? imgBytes = await _fetchImageBytes(rawUrl);
       if (imgBytes != null && _isSupportedImage(imgBytes)) {
-        // Add a new page for each image
         pdf.addPage(
           pw.Page(
             pageFormat: PdfPageFormat.a4,
             margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-            build: (context) => pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  heading,
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    fontWeight: pw.FontWeight.bold,
+            build: (context) {
+              final availableWidth =
+                  PdfPageFormat.a4.availableWidth - 40; // 20 left + 20 right
+              final availableHeight =
+                  PdfPageFormat.a4.availableHeight -
+                  80; // 20 top + 20 bottom + 16 + heading
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    heading,
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-                pw.SizedBox(height: 16),
-                pw.Image(pw.MemoryImage(imgBytes), fit: pw.BoxFit.contain),
-              ],
-            ),
+                  pw.SizedBox(height: 16),
+                  pw.Center(
+                    child: pw.Image(
+                      pw.MemoryImage(imgBytes),
+                      width: availableWidth,
+                      height: availableHeight,
+                      fit: pw.BoxFit.contain,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         );
       } else {
