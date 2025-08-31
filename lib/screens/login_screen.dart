@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,31 +13,35 @@ class _LoginScreenState extends State<LoginScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   String? _error;
+  bool _loading = false;
 
-  void _login() {
-    if (_userController.text == 'admin' && _passController.text == 'admin') {
+  /// 👁️ Track password visibility
+  bool _obscurePassword = true;
+
+  Future<void> _login() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _userController.text.trim(),
+        password: _passController.text.trim(),
+      );
+
+      // Navigate if success
       Navigator.pushReplacement(
         context,
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 700),
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curvedAnimation = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOut, // Smooth ease-in-out
-            );
-            final offsetAnimation = Tween<Offset>(
-              begin: const Offset(1.0, 0.0), // Slide in from right
-              end: Offset.zero,
-            ).animate(curvedAnimation);
-            return SlideTransition(position: offsetAnimation, child: child);
-          },
-        ),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
-    } else {
+    } on FirebaseAuthException catch (e) {
       setState(() {
-        _error = 'Invalid credentials';
+        _error = e.message ?? 'Login failed';
+      });
+    } finally {
+      setState(() {
+        _loading = false;
       });
     }
   }
@@ -57,27 +62,47 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Image.asset('assets/logo.png', width: 80, height: 80),
                   const SizedBox(height: 16),
+
+                  // Email field
                   TextField(
                     controller: _userController,
                     decoration: const InputDecoration(
-                      labelText: 'Username',
+                      labelText: 'Email',
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Password field with eye icon
                   TextField(
                     controller: _passController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
                   ),
+
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!, style: const TextStyle(color: Colors.red)),
                   ],
+
                   const SizedBox(height: 24),
+
+                  // Login button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -87,7 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('Login'),
+                      child: _loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Login'),
                     ),
                   ),
                 ],

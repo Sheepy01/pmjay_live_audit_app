@@ -1,15 +1,37 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SurveyCTOService {
-  static const String _server = "adri.surveycto.com";
-  static const String _formId = "Live_Audit_During_Hospitalization";
-  static const String _username = "adri.project@adriindia.org";
-  static const String _password = "Adri@2025";
+  static String? _server;
+  static String? _formId;
+  static String? _username;
+  static String? _password;
+
+  /// Load credentials from Firestore once
+  static Future<void> loadCredentials() async {
+    if (_server != null) return; // already loaded
+
+    final doc = await FirebaseFirestore.instance
+        .collection('config')
+        .doc('surveycto')
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      _server = data['server'];
+      _formId = data['formId'];
+      _username = data['username'];
+      _password = data['password'];
+    } else {
+      throw Exception("SurveyCTO config not found in Firestore");
+    }
+  }
 
   static Future<List<Map<String, dynamic>>> fetchFormData() async {
-    final url = Uri.https(_server, '/api/v1/forms/data/wide/json/$_formId');
+    await loadCredentials();
+    final url = Uri.https(_server!, '/api/v1/forms/data/wide/json/$_formId');
     final response = await http.get(
       url,
       headers: {

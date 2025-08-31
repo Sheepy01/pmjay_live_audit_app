@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "545545369243",
+    "project_id": "pmjay-live-audit",
+    "storage_bucket": "pmjay-live-audit.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545545369243:android:ff4a8f0bb54a8de07cb83e",
+        "android_client_info": {
+          "package_name": "com.example.pmjay_live_audit_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCORXpNPyn3GUyNC7Pw_58nxM7GyoiqSk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
