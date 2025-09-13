@@ -4,9 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'surveycto_service.dart';
 
 class PdfService {
   /// Generates the “Checklist for Beneficiary Audit” PDF in A4 portrait.
@@ -738,8 +737,13 @@ class PdfService {
       final heading = field['heading']!;
       final keyName = field['key']!;
       final rawUrl = data[keyName] as String?;
-      final Uint8List? imgBytes = await _fetchImageBytes(rawUrl);
+      print(rawUrl);
+      final Uint8List? imgBytes = await SurveyCTOService.fetchImageBytes(
+        rawUrl,
+      );
+      print(imgBytes);
       if (imgBytes != null && _isSupportedImage(imgBytes)) {
+        print("Inside If");
         pdf.addPage(
           pw.Page(
             pageFormat: PdfPageFormat.a4,
@@ -1202,28 +1206,6 @@ class PdfService {
     );
 
     return pdf.save();
-  }
-
-  static final String _basicAuthCredentials =
-      'Basic ${base64Encode(utf8.encode('adri.project@adriindia.org:Adri@2025'))}';
-
-  static Future<Uint8List?> _fetchImageBytes(String? url) async {
-    if (url == null) return null;
-    final trimmed = url.trim();
-    if (trimmed.isEmpty || trimmed == '0') return null;
-
-    try {
-      final response = await http.get(
-        Uri.parse(trimmed),
-        headers: {'Authorization': _basicAuthCredentials},
-      );
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
-      }
-    } catch (_) {
-      // ignore errors
-    }
-    return null;
   }
 
   /// Returns true if [bytes] begin with a known PNG or JPEG signature.

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:typed_data';
 
 class SurveyCTOService {
   static String? _server;
@@ -91,6 +92,38 @@ class SurveyCTOService {
         return entry;
       }
     }
+    return null;
+  }
+
+  static Future<Uint8List?> fetchImageBytes(String? url) async {
+    if (url == null) return null;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty || trimmed == '0') return null;
+
+    await loadCredentials(); // ensures server/username/password are loaded
+    if (_username == null || _password == null) {
+      throw Exception("SurveyCTO credentials not loaded");
+    }
+
+    final authHeader =
+        'Basic ${base64Encode(utf8.encode('$_username:$_password'))}';
+
+    try {
+      final response = await http.get(
+        Uri.parse(trimmed),
+        headers: {'Authorization': authHeader},
+      );
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        print(
+          "Image fetch failed: ${response.statusCode} ${response.reasonPhrase}",
+        );
+      }
+    } catch (e) {
+      print("Error fetching image: $e");
+    }
+
     return null;
   }
 }

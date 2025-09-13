@@ -14,8 +14,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passController = TextEditingController();
   String? _error;
   bool _loading = false;
-
-  /// 👁️ Track password visibility
   bool _obscurePassword = true;
 
   Future<void> _login() async {
@@ -29,6 +27,11 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _userController.text.trim(),
         password: _passController.text.trim(),
       );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("Not logged in");
+      }
 
       // Navigate if success
       Navigator.pushReplacement(
