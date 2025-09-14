@@ -30,6 +30,40 @@ class SurveyCTOService {
     }
   }
 
+  static String _convertToIST(String? rawDate) {
+    if (rawDate == null || rawDate.trim().isEmpty) return "";
+
+    try {
+      // Example SurveyCTO date format: "Jul 10, 2025 5:26:00 AM"
+      final dt = DateFormat("MMM d, yyyy h:mm:ss a").parse(rawDate, true);
+      final istTime = dt.add(const Duration(hours: 5, minutes: 30));
+      return DateFormat("yyyy-MM-dd HH:mm").format(istTime);
+    } catch (_) {
+      // fallback: try default parsing
+      final dt = DateTime.tryParse(rawDate);
+      if (dt != null) {
+        final istTime = dt.add(const Duration(hours: 5, minutes: 30));
+        return DateFormat("yyyy-MM-dd HH:mm").format(istTime);
+      }
+    }
+
+    return rawDate; // return as-is if parsing failed
+  }
+
+  static Map<String, dynamic> _normalizeRecord(Map<String, dynamic> record) {
+    final normalized = <String, dynamic>{};
+    record.forEach((key, value) {
+      if (value is String &&
+          (key.toLowerCase().contains("date") ||
+              key.toLowerCase().contains("time"))) {
+        normalized[key] = _convertToIST(value);
+      } else {
+        normalized[key] = value;
+      }
+    });
+    return normalized;
+  }
+
   static Future<List<Map<String, dynamic>>> fetchFormData() async {
     await loadCredentials();
     final url = Uri.https(_server!, '/api/v1/forms/data/wide/json/$_formId');
@@ -56,7 +90,7 @@ class SurveyCTOService {
     for (final entry in data) {
       if ((entry['hospital_id'] ?? '').toString().trim() == hospitalId.trim() &&
           (entry['case_no'] ?? '').toString().trim() == caseNo.trim()) {
-        return entry;
+        return _normalizeRecord(entry);
       }
     }
     return null;
@@ -89,7 +123,7 @@ class SurveyCTOService {
       }
 
       if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
-        return entry;
+        return _normalizeRecord(entry);
       }
     }
     return null;
