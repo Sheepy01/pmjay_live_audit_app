@@ -26,6 +26,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   String _auditType = 'Hospital and Patient Audit';
 
+  // New error state variables
+  String? _hospitalIdError;
+  String? _patientIdError;
+  String? _dateError;
+
   Future<void> _pickDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -41,6 +46,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _runSearch() async {
+    // Reset errors before validation
+    setState(() {
+      _hospitalIdError = null;
+      _patientIdError = null;
+      _dateError = null;
+    });
+
+    bool hasError = false;
+
+    if (_hospitalIdController.text.trim().isEmpty) {
+      setState(() => _hospitalIdError = "Hospital ID cannot be empty");
+      hasError = true;
+    }
+
+    if (_auditType == 'Hospital and Patient Audit') {
+      if (_patientIdController.text.trim().isEmpty) {
+        setState(() => _patientIdError = "Case No cannot be empty");
+        hasError = true;
+      }
+    } else {
+      if (_dateController.text.trim().isEmpty) {
+        setState(() => _dateError = "Date cannot be empty");
+        hasError = true;
+      }
+    }
+
+    if (hasError) return; // stop before running search
+
+    // Proceed if no errors
     setState(() {
       _loading = true;
       _error = null;
@@ -54,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _patientIdController.text,
         );
       } else {
-        // Hospital Audit: use hospital ID and date
         record = await SurveyCTOService.findRecordByHospitalAndDate(
           _hospitalIdController.text,
           _dateController.text,
@@ -146,13 +179,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Scrollable content
                     Flexible(
                       child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Dropdown menu
+                            // Dropdown
                             DropdownButtonFormField<String>(
                               value: _auditType,
                               decoration: const InputDecoration(
@@ -177,48 +209,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   _dateController.clear();
                                   _record = null;
                                   _error = null;
+                                  _hospitalIdError = null;
+                                  _patientIdError = null;
+                                  _dateError = null;
                                 });
                               },
                             ),
                             const SizedBox(height: 24),
-                            // Dynamic form fields
+
+                            // Dynamic fields with error messages
                             if (_auditType == 'Hospital and Patient Audit') ...[
                               TextField(
                                 controller: _hospitalIdController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Hospital ID',
-                                  border: OutlineInputBorder(),
+                                  border: const OutlineInputBorder(),
+                                  errorText: _hospitalIdError,
                                 ),
                               ),
                               const SizedBox(height: 16),
                               TextField(
                                 controller: _patientIdController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Case NO',
-                                  border: OutlineInputBorder(),
+                                  border: const OutlineInputBorder(),
+                                  errorText: _patientIdError,
                                 ),
                               ),
                             ] else ...[
                               TextField(
                                 controller: _hospitalIdController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Hospital ID',
-                                  border: OutlineInputBorder(),
+                                  border: const OutlineInputBorder(),
+                                  errorText: _hospitalIdError,
                                 ),
                               ),
                               const SizedBox(height: 16),
                               TextField(
                                 controller: _dateController,
                                 readOnly: true,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Date',
-                                  border: OutlineInputBorder(),
-                                  suffixIcon: Icon(Icons.calendar_today),
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon: const Icon(Icons.calendar_today),
+                                  errorText: _dateError,
                                 ),
                                 onTap: () => _pickDate(context),
                               ),
                             ],
                             const SizedBox(height: 24),
+
+                            // Run button
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
@@ -234,10 +276,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 onPressed: _loading ? null : _runSearch,
                               ),
                             ),
+
                             if (_loading) ...[
                               const SizedBox(height: 16),
                               const CircularProgressIndicator(),
                             ],
+
                             if (_error != null) ...[
                               const SizedBox(height: 16),
                               Text(
@@ -245,6 +289,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 style: const TextStyle(color: Colors.red),
                               ),
                             ],
+
                             if (_record != null) ...[
                               const SizedBox(height: 24),
                               const Text(
@@ -293,7 +338,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
-                    // Fixed Download PDF button at the bottom of the card
+
+                    // PDF button
                     if (_record != null) ...[
                       if (_downloading)
                         const Padding(

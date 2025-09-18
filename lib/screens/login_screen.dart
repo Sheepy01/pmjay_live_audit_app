@@ -12,20 +12,44 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
-  String? _error;
+
+  String? _emailError;
+  String? _passwordError;
+  String? _firebaseError;
+
   bool _loading = false;
   bool _obscurePassword = true;
 
   Future<void> _login() async {
     setState(() {
+      _emailError = null;
+      _passwordError = null;
+      _firebaseError = null;
+    });
+
+    final email = _userController.text.trim();
+    final password = _passController.text.trim();
+
+    bool hasError = false;
+    if (email.isEmpty) {
+      setState(() => _emailError = "Email is required");
+      hasError = true;
+    }
+    if (password.isEmpty) {
+      setState(() => _passwordError = "Password is required");
+      hasError = true;
+    }
+
+    if (hasError) return; // Stop before calling Firebase
+
+    setState(() {
       _loading = true;
-      _error = null;
     });
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _userController.text.trim(),
-        password: _passController.text.trim(),
+        email: email,
+        password: password,
       );
 
       final user = FirebaseAuth.instance.currentUser;
@@ -33,14 +57,13 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception("Not logged in");
       }
 
-      // Navigate if success
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } on FirebaseAuthException catch (e) {
       setState(() {
-        _error = e.message ?? 'Login failed';
+        _firebaseError = e.message ?? "Login failed";
       });
     } finally {
       setState(() {
@@ -69,14 +92,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Email field
                   TextField(
                     controller: _userController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Email',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      errorText: _emailError,
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Password field with eye icon
+                  // Password field
                   TextField(
                     controller: _passController,
                     obscureText: _obscurePassword,
@@ -95,12 +119,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           });
                         },
                       ),
+                      errorText: _passwordError,
                     ),
                   ),
 
-                  if (_error != null) ...[
+                  if (_firebaseError != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    Text(
+                      _firebaseError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ],
 
                   const SizedBox(height: 24),
