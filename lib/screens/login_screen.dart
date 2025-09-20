@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
       hasError = true;
     }
 
-    if (hasError) return; // Stop before calling Firebase
+    if (hasError) return;
 
     setState(() {
       _loading = true;
@@ -77,78 +77,99 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: FractionallySizedBox(
+          widthFactor: 0.9,
           child: Card(
-            elevation: 4,
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('assets/logo.png', width: 80, height: 80),
-                  const SizedBox(height: 16),
+              padding: const EdgeInsets.all(10.0),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(10.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/logo.png',
+                              width: 80,
+                              height: 80,
+                            ),
+                            const SizedBox(height: 16),
 
-                  // Email field
-                  TextField(
-                    controller: _userController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      border: const OutlineInputBorder(),
-                      errorText: _emailError,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                            // Email field
+                            TextField(
+                              controller: _userController,
+                              decoration: InputDecoration(
+                                labelText: 'Email',
+                                border: const OutlineInputBorder(),
+                                errorText: _emailError,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
 
-                  // Password field
-                  TextField(
-                    controller: _passController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                            // Password field
+                            TextField(
+                              controller: _passController,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                                errorText: _passwordError,
+                              ),
+                            ),
+
+                            if (_firebaseError != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _firebaseError!,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ],
+
+                            const SizedBox(height: 24),
+
+                            // Login button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: _loading
+                                    ? const CircularProgressIndicator(
+                                        color: Colors.white,
+                                      )
+                                    : const Text('Login'),
+                              ),
+                            ),
+                          ],
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
                       ),
-                      errorText: _passwordError,
-                    ),
-                  ),
-
-                  if (_firebaseError != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _firebaseError!,
-                      style: const TextStyle(color: Colors.red),
                     ),
                   ],
-
-                  const SizedBox(height: 24),
-
-                  // Login button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: _loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Login'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
