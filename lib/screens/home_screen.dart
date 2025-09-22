@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/surveycto_service.dart';
-import 'package:printing/printing.dart';
 import '../services/pdf_service.dart';
 import 'package:intl/intl.dart';
-import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:open_file/open_file.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 
@@ -19,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _patientIdController = TextEditingController();
   final _dateController = TextEditingController();
   bool _downloading = false;
+  bool _previewing = false;
 
   Map<String, dynamic>? _record;
   bool _loading = false;
@@ -26,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   String _auditType = 'Hospital and Patient Audit';
 
-  // New error state variables
+  // Error state variables
   String? _hospitalIdError;
   String? _patientIdError;
   String? _dateError;
@@ -46,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _runSearch() async {
-    // Reset errors before validation
     setState(() {
       _hospitalIdError = null;
       _patientIdError = null;
@@ -54,12 +57,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
 
     bool hasError = false;
-
     if (_hospitalIdController.text.trim().isEmpty) {
       setState(() => _hospitalIdError = "Hospital ID cannot be empty");
       hasError = true;
     }
-
     if (_auditType == 'Hospital and Patient Audit') {
       if (_patientIdController.text.trim().isEmpty) {
         setState(() => _patientIdError = "Case No cannot be empty");
@@ -72,14 +73,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     }
 
-    if (hasError) return; // stop before running search
+    if (hasError) return;
 
-    // Proceed if no errors
     setState(() {
       _loading = true;
       _error = null;
       _record = null;
     });
+
     try {
       Map<String, dynamic>? record;
       if (_auditType == 'Hospital and Patient Audit') {
@@ -93,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _dateController.text,
         );
       }
+
       if (record != null) {
         setState(() {
           _record = record;
@@ -111,6 +113,114 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  // Preview PDF without saving
+  Future<void> _previewPdf() async {
+    if (_record == null) return;
+
+    Uint8List pdfData;
+    if (_auditType == 'Hospital Audit') {
+      pdfData = await PdfService.generateHospitalAuditReport(_record!);
+    } else {
+      pdfData = await PdfService.generateAuditReport(_record!);
+    }
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/preview.pdf');
+    await file.writeAsBytes(pdfData);
+    await OpenFile.open(file.path, type: "application/pdf");
+  }
+
+  // Download PDF and save with hospitalId + date
+  Future<void> _downloadPdf() async {
+    if (_record == null) return;
+
+    setState(() => _downloading = true);
+
+    try {
+      Uint8List pdfData;
+      if (_auditType == 'Hospital Audit') {
+        pdfData = await PdfService.generateHospitalAuditReport(_record!);
+      } else {
+        pdfData = await PdfService.generateAuditReport(_record!);
+      }
+
+      // Ask for storage permission
+      if (!await Permission.storage.request().isGranted) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Permission Denied"),
+            content: const Text(
+              "Storage permission is required to save the PDF.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final hospitalId = _record!['hospitalId'] ?? 'hospital';
+      final date = DateFormat('yyyyMMdd').format(DateTime.now());
+      final fileName = '${hospitalId}_$date.pdf';
+
+      Directory? downloadsDir;
+      if (Platform.isAndroid) {
+        downloadsDir = Directory('/storage/emulated/0/Download');
+      } else if (Platform.isIOS) {
+        downloadsDir = await getApplicationDocumentsDirectory();
+      }
+
+      final filePath = '${downloadsDir!.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(pdfData);
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Success"),
+          content: Text("PDF saved successfully!\n\nPath:\n$filePath"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                OpenFile.open(filePath, type: "application/pdf");
+              },
+              child: const Text("Open"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Error"),
+          content: Text("Failed to save PDF.\n\nError: $e"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      setState(() => _downloading = false);
     }
   }
 
@@ -134,27 +244,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onPressed: () async {
               final shouldLogout = await showDialog<bool>(
                 context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    title: const Text("Confirm Logout"),
-                    content: const Text("Are you sure you want to sign out?"),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text("Cancel"),
+                builder: (context) => AlertDialog(
+                  title: const Text("Confirm Logout"),
+                  content: const Text("Are you sure you want to sign out?"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text("Cancel"),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text(
+                        "Sign Out",
+                        style: TextStyle(color: Colors.red),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text(
-                          "Sign Out",
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                    ),
+                  ],
+                ),
               );
-
               if (shouldLogout == true) {
                 await FirebaseAuth.instance.signOut();
                 Navigator.pushReplacement(
@@ -217,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 24),
 
-                            // Dynamic fields with error messages
+                            // Dynamic fields with errors
                             if (_auditType == 'Hospital and Patient Audit') ...[
                               TextField(
                                 controller: _hospitalIdController,
@@ -333,62 +440,72 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(height: 16),
+
+                              // PDF Buttons: Preview and Download
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(
+                                        Icons.picture_as_pdf,
+                                        color: Colors.white,
+                                      ),
+                                      label: const Text("Preview PDF"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onPressed: _previewing
+                                          ? null
+                                          : () async {
+                                              setState(
+                                                () => _previewing = true,
+                                              );
+                                              try {
+                                                await _previewPdf(); // your existing preview function
+                                              } finally {
+                                                setState(
+                                                  () => _previewing = false,
+                                                );
+                                              }
+                                            },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(
+                                        Icons.download,
+                                        color: Colors.white,
+                                      ),
+                                      label: const Text("Download PDF"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onPressed: _downloading
+                                          ? null
+                                          : _downloadPdf,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_downloading || _previewing)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 8.0),
+                                  child: LinearProgressIndicator(),
+                                ),
                             ],
                           ],
                         ),
                       ),
                     ),
-
-                    // PDF button
-                    if (_record != null) ...[
-                      if (_downloading)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 16.0),
-                          child: LinearProgressIndicator(),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: ElevatedButton.icon(
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.white,
-                          ),
-                          label: const Text('Download PDF'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 15,
-                            ),
-                          ),
-                          onPressed: _downloading
-                              ? null
-                              : () async {
-                                  setState(() => _downloading = true);
-                                  try {
-                                    Uint8List pdfData;
-                                    if (_auditType == 'Hospital Audit') {
-                                      pdfData =
-                                          await PdfService.generateHospitalAuditReport(
-                                            _record!,
-                                          );
-                                    } else {
-                                      pdfData =
-                                          await PdfService.generateAuditReport(
-                                            _record!,
-                                          );
-                                    }
-                                    await Printing.layoutPdf(
-                                      onLayout: (format) async => pdfData,
-                                    );
-                                  } finally {
-                                    setState(() => _downloading = false);
-                                  }
-                                },
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

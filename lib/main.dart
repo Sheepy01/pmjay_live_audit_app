@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +30,40 @@ class PMJAYLiveAuditApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: const SplashScreen(),
+      home: const PermissionWrapper(child: SplashScreen()),
     );
+  }
+}
+
+class PermissionWrapper extends StatefulWidget {
+  final Widget child;
+  const PermissionWrapper({super.key, required this.child});
+
+  @override
+  State<PermissionWrapper> createState() => _PermissionWrapperState();
+}
+
+class _PermissionWrapperState extends State<PermissionWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _requestStoragePermission();
+  }
+
+  Future<void> _requestStoragePermission() async {
+    final status = await Permission.storage.request();
+    if (status.isDenied) {
+      // Ask again later or show a snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Storage permission is required.')),
+      );
+    } else if (status.isPermanentlyDenied) {
+      openAppSettings(); // Ask user to enable manually
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
