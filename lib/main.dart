@@ -47,18 +47,24 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   @override
   void initState() {
     super.initState();
-    _requestStoragePermission();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestStoragePermission();
+    });
   }
 
   Future<void> _requestStoragePermission() async {
-    final status = await Permission.storage.request();
+    if (await Permission.manageExternalStorage.isGranted) return;
+
+    var status = await Permission.manageExternalStorage.request();
+
     if (status.isDenied) {
-      // Ask again later or show a snackbar
+      // Ask again later
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Storage permission is required.')),
       );
     } else if (status.isPermanentlyDenied) {
-      openAppSettings(); // Ask user to enable manually
+      // Open app settings
+      await openAppSettings();
     }
   }
 

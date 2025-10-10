@@ -10,6 +10,156 @@ class SurveyCTOService {
   static String? _username;
   static String? _password;
 
+  // Fetch hospitals for a given date
+  static Future<List<Map<String, dynamic>>> fetchHospitalsByDate(
+    String date,
+  ) async {
+    final data = await fetchFormData();
+    final hospitals = <String, Map<String, dynamic>>{};
+    for (final entry in data) {
+      // Parse date to yyyy-MM-dd
+      final entryDateRaw = (entry['date'] ?? '').toString().trim();
+      String entryDate = '';
+      if (entryDateRaw.isNotEmpty) {
+        try {
+          final dt = DateFormat(
+            'MMM d, yyyy h:mm:ss a',
+          ).parse(entryDateRaw, true).toLocal();
+          entryDate = DateFormat('yyyy-MM-dd').format(dt);
+        } catch (_) {
+          final dt = DateTime.tryParse(entryDateRaw);
+          if (dt != null) {
+            entryDate = DateFormat('yyyy-MM-dd').format(dt);
+          }
+        }
+      }
+      if (entryDate == date.trim()) {
+        final hospitalId = (entry['hospital_id'] ?? '').toString().trim();
+        final hospitalName = (entry['hospital_name'] ?? '').toString().trim();
+        if (hospitalId.isNotEmpty && hospitalName.isNotEmpty) {
+          hospitals[hospitalId] = {
+            'hospital_id': hospitalId,
+            'hospital_name': hospitalName,
+          };
+        }
+      }
+    }
+    return hospitals.values.toList();
+  }
+
+  // Fetch patient IDs and audit type for a hospital and date
+  static Future<List<String>> fetchPatientIdsOrAuditType(
+    String hospitalId,
+    String date,
+  ) async {
+    final data = await fetchFormData();
+    final patientIds = <String>{};
+    bool hasHospitalAuditOnly = false;
+    for (final entry in data) {
+      final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
+      final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
+      final entryDateRaw = (entry['date'] ?? '').toString().trim();
+      String entryDate = '';
+      if (entryDateRaw.isNotEmpty) {
+        try {
+          final dt = DateFormat(
+            'MMM d, yyyy h:mm:ss a',
+          ).parse(entryDateRaw, true).toLocal();
+          entryDate = DateFormat('yyyy-MM-dd').format(dt);
+        } catch (_) {
+          final dt = DateTime.tryParse(entryDateRaw);
+          if (dt != null) {
+            entryDate = DateFormat('yyyy-MM-dd').format(dt);
+          }
+        }
+      }
+      if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
+        if (entryPatientId.isNotEmpty || entryCaseNo.isNotEmpty) {
+          patientIds.add(
+            entryPatientId.isNotEmpty ? entryPatientId : entryCaseNo,
+          );
+        } else {
+          hasHospitalAuditOnly = true;
+        }
+      }
+    }
+    final result = patientIds.toList();
+    if (hasHospitalAuditOnly) result.add('Hospital Audit Only');
+    return result;
+  }
+
+  // Fetch record for Hospital Audit Only
+  static Future<Map<String, dynamic>?> findHospitalAudit(
+    String hospitalId,
+    String date,
+  ) async {
+    final data = await fetchFormData();
+    for (final entry in data) {
+      final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
+      final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
+      final entryDateRaw = (entry['date'] ?? '').toString().trim();
+      String entryDate = '';
+      if (entryDateRaw.isNotEmpty) {
+        try {
+          final dt = DateFormat(
+            'MMM d, yyyy h:mm:ss a',
+          ).parse(entryDateRaw, true).toLocal();
+          entryDate = DateFormat('yyyy-MM-dd').format(dt);
+        } catch (_) {
+          final dt = DateTime.tryParse(entryDateRaw);
+          if (dt != null) {
+            entryDate = DateFormat('yyyy-MM-dd').format(dt);
+          }
+        }
+      }
+      if (entryHospitalId == hospitalId.trim() &&
+          entryDate == date.trim() &&
+          entryPatientId.isEmpty &&
+          entryCaseNo.isEmpty) {
+        return _normalizeRecord(entry);
+      }
+    }
+    return null;
+  }
+
+  // Fetch record for Hospital and Patient Audit
+  static Future<Map<String, dynamic>?> findHospitalPatientAudit(
+    String hospitalId,
+    String patientId,
+    String date,
+  ) async {
+    final data = await fetchFormData();
+    for (final entry in data) {
+      final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
+      final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
+      final entryDateRaw = (entry['date'] ?? '').toString().trim();
+      String entryDate = '';
+      if (entryDateRaw.isNotEmpty) {
+        try {
+          final dt = DateFormat(
+            'MMM d, yyyy h:mm:ss a',
+          ).parse(entryDateRaw, true).toLocal();
+          entryDate = DateFormat('yyyy-MM-dd').format(dt);
+        } catch (_) {
+          final dt = DateTime.tryParse(entryDateRaw);
+          if (dt != null) {
+            entryDate = DateFormat('yyyy-MM-dd').format(dt);
+          }
+        }
+      }
+      if (entryHospitalId == hospitalId.trim() &&
+          entryDate == date.trim() &&
+          (entryPatientId == patientId.trim() ||
+              entryCaseNo == patientId.trim())) {
+        return _normalizeRecord(entry);
+      }
+    }
+    return null;
+  }
+
   /// Load credentials from Firestore once
   static Future<void> loadCredentials() async {
     if (_server != null) return; // already loaded

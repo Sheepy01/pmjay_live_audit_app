@@ -18,94 +18,153 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  final _hospitalIdController = TextEditingController();
-  final _patientIdController = TextEditingController();
-  final _dateController = TextEditingController();
+  DateTime? _selectedDate;
+  String? _selectedHospitalId;
+  String? _selectedHospitalName;
+  String? _selectedPatientIdOrAuditType;
+  String? _hospitalError;
+  String? _patientError;
+
+  final TextEditingController _dateController = TextEditingController();
+
+  List<Map<String, dynamic>> _hospitals = [];
+  List<String> _patientIdsOrAuditTypes = [];
+
+  bool _loadingHospitals = false;
+  bool _loadingPatients = false;
+  bool _loading = false;
   bool _downloading = false;
   bool _previewing = false;
 
   Map<String, dynamic>? _record;
-  bool _loading = false;
   String? _error;
 
-  String _auditType = 'Hospital and Patient Audit';
+  late final AnimationController _dotsController;
+  Animation<int>? _dotsAnimation;
 
-  // Error state variables
-  String? _hospitalIdError;
-  String? _patientIdError;
-  String? _dateError;
+  @override
+  void initState() {
+    super.initState();
+    _dotsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat();
+    _dotsAnimation = StepTween(begin: 0, end: 3).animate(_dotsController);
+  }
+
+  @override
+  void dispose() {
+    _dateController.dispose();
+    _dotsController.dispose();
+    _dotsAnimation = null;
+    super.dispose();
+  }
 
   Future<void> _pickDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
     if (picked != null) {
       setState(() {
+        _selectedDate = picked;
         _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+        _selectedHospitalId = null;
+        _selectedHospitalName = null;
+        _selectedPatientIdOrAuditType = null;
+        _hospitals = [];
+        _patientIdsOrAuditTypes = [];
+        _record = null;
+        _error = null;
+        _loadingHospitals = true;
+        _hospitalError = null;
+        _patientError = null;
+      });
+      try {
+        final hospitals = await SurveyCTOService.fetchHospitalsByDate(
+          _dateController.text,
+        );
+        setState(() {
+          _hospitals = hospitals;
+          _loadingHospitals = false;
+          _hospitalError = hospitals.isEmpty
+              ? "No hospitals found for the selected date."
+              : null;
+        });
+      } catch (e) {
+        setState(() {
+          _hospitalError = "Error fetching hospitals: $e";
+          _loadingHospitals = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _onHospitalSelected(String? hospitalId) async {
+    final hospital = _hospitals.firstWhere(
+      (h) => h['hospital_id'] == hospitalId,
+      orElse: () => {},
+    );
+    setState(() {
+      _selectedHospitalId = hospitalId;
+      _selectedHospitalName = hospital['hospital_name'];
+      _selectedPatientIdOrAuditType = null;
+      _patientIdsOrAuditTypes = [];
+      _record = null;
+      _error = null;
+      _loadingPatients = true;
+      _patientError = null;
+    });
+    try {
+      final patientIdsOrAuditTypes =
+          await SurveyCTOService.fetchPatientIdsOrAuditType(
+            hospitalId!,
+            _dateController.text,
+          );
+      setState(() {
+        _patientIdsOrAuditTypes = patientIdsOrAuditTypes;
+        _loadingPatients = false;
+        _patientError = patientIdsOrAuditTypes.isEmpty
+            ? "No patient IDs or audits found for the selected hospital and date."
+            : null;
+      });
+    } catch (e) {
+      setState(() {
+        _patientError = "Error fetching patient IDs: $e";
+        _loadingPatients = false;
       });
     }
   }
 
   Future<void> _runSearch() async {
     setState(() {
-      _hospitalIdError = null;
-      _patientIdError = null;
-      _dateError = null;
-    });
-
-    bool hasError = false;
-    if (_hospitalIdController.text.trim().isEmpty) {
-      setState(() => _hospitalIdError = "Hospital ID cannot be empty");
-      hasError = true;
-    }
-    if (_auditType == 'Hospital and Patient Audit') {
-      if (_patientIdController.text.trim().isEmpty) {
-        setState(() => _patientIdError = "Case No cannot be empty");
-        hasError = true;
-      }
-    } else {
-      if (_dateController.text.trim().isEmpty) {
-        setState(() => _dateError = "Date cannot be empty");
-        hasError = true;
-      }
-    }
-
-    if (hasError) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
       _record = null;
+      _error = null;
+      _loading = true;
     });
-
     try {
       Map<String, dynamic>? record;
-      if (_auditType == 'Hospital and Patient Audit') {
-        record = await SurveyCTOService.findRecord(
-          _hospitalIdController.text,
-          _patientIdController.text,
+      if (_selectedPatientIdOrAuditType == 'Hospital Audit Only') {
+        record = await SurveyCTOService.findHospitalAudit(
+          _selectedHospitalId!,
+          _dateController.text,
         );
       } else {
-        record = await SurveyCTOService.findRecordByHospitalAndDate(
-          _hospitalIdController.text,
+        record = await SurveyCTOService.findHospitalPatientAudit(
+          _selectedHospitalId!,
+          _selectedPatientIdOrAuditType!,
           _dateController.text,
         );
       }
-
-      if (record != null) {
-        setState(() {
-          _record = record;
-        });
-      } else {
-        setState(() {
-          _error = "No matching record found.";
-        });
-      }
-    } catch (e, stack) {
-      print('Error: $e\n$stack');
+      setState(() {
+        _record = record;
+        _error = record == null
+            ? "No record found for the selected options."
+            : null;
+      });
+    } catch (e) {
       setState(() {
         _error = "Error: $e";
       });
@@ -116,73 +175,82 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // Preview PDF without saving
   Future<void> _previewPdf() async {
     if (_record == null) return;
-
-    Uint8List pdfData;
-    if (_auditType == 'Hospital Audit') {
-      pdfData = await PdfService.generateHospitalAuditReport(_record!);
-    } else {
-      pdfData = await PdfService.generateAuditReport(_record!);
-    }
-
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/preview.pdf');
-    await file.writeAsBytes(pdfData);
-    await OpenFile.open(file.path, type: "application/pdf");
-  }
-
-  // Download PDF and save with hospitalId + date
-  Future<void> _downloadPdf() async {
-    if (_record == null) return;
-
-    setState(() => _downloading = true);
-
+    setState(() => _previewing = true);
     try {
       Uint8List pdfData;
-      if (_auditType == 'Hospital Audit') {
+      if (_selectedPatientIdOrAuditType == 'Hospital Audit Only') {
         pdfData = await PdfService.generateHospitalAuditReport(_record!);
       } else {
         pdfData = await PdfService.generateAuditReport(_record!);
       }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/preview.pdf');
+      await file.writeAsBytes(pdfData);
+      await OpenFile.open(file.path, type: "application/pdf");
+    } finally {
+      setState(() => _previewing = false);
+    }
+  }
 
-      // Ask for storage permission
-      if (!await Permission.storage.request().isGranted) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Permission Denied"),
-            content: const Text(
-              "Storage permission is required to save the PDF.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-        );
-        return;
+  Future<bool> _checkStoragePermission() async {
+    if (Platform.isAndroid) {
+      if (await Permission.manageExternalStorage.isGranted) return true;
+      var status = await Permission.manageExternalStorage.request();
+      if (status.isGranted) return true;
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+        return false;
       }
+      return false;
+    } else {
+      return true;
+    }
+  }
 
-      final hospitalId = _record!['hospitalId'] ?? 'hospital';
+  Future<void> _downloadPdf() async {
+    if (_record == null) return;
+    final hasPermission = await _checkStoragePermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Permission Denied"),
+          content: const Text(
+            "Storage permission is required to save the PDF.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    setState(() => _downloading = true);
+    try {
+      Uint8List pdfData;
+      if (_selectedPatientIdOrAuditType == 'Hospital Audit Only') {
+        pdfData = await PdfService.generateHospitalAuditReport(_record!);
+      } else {
+        pdfData = await PdfService.generateAuditReport(_record!);
+      }
+      final hospitalId = _record!['hospital_id'] ?? 'hospital';
       final date = DateFormat('yyyyMMdd').format(DateTime.now());
       final fileName = '${hospitalId}_$date.pdf';
-
       Directory? downloadsDir;
       if (Platform.isAndroid) {
         downloadsDir = Directory('/storage/emulated/0/Download');
       } else if (Platform.isIOS) {
         downloadsDir = await getApplicationDocumentsDirectory();
       }
-
       final filePath = '${downloadsDir!.path}/$fileName';
       final file = File(filePath);
       await file.writeAsBytes(pdfData);
-
       if (!mounted) return;
       showDialog(
         context: context,
@@ -291,83 +359,106 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Dropdown
-                            DropdownButtonFormField<String>(
-                              value: _auditType,
+                            // Date Picker
+                            TextField(
+                              readOnly: true,
+                              controller: _dateController,
                               decoration: const InputDecoration(
-                                labelText: 'Audit Type',
+                                labelText: 'Select Date',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.calendar_today),
+                              ),
+                              onTap: () => _pickDate(context),
+                            ),
+                            const SizedBox(height: 16),
+                            // Hospital Dropdown
+                            if (_hospitalError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Text(
+                                  _hospitalError!,
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            DropdownButtonFormField<String>(
+                              value: _hospitals.isEmpty
+                                  ? null
+                                  : _selectedHospitalId,
+                              decoration: const InputDecoration(
+                                labelText: 'Select Hospital',
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Hospital and Patient Audit',
-                                  child: Text('Hospital and Patient Audit'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Hospital Audit',
-                                  child: Text('Hospital Audit'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _auditType = value!;
-                                  _hospitalIdController.clear();
-                                  _patientIdController.clear();
-                                  _dateController.clear();
-                                  _record = null;
-                                  _error = null;
-                                  _hospitalIdError = null;
-                                  _patientIdError = null;
-                                  _dateError = null;
-                                });
-                              },
+                              items: _hospitals
+                                  .map(
+                                    (hosp) => DropdownMenuItem<String>(
+                                      value: hosp['hospital_id']?.toString(),
+                                      child: Text(
+                                        hosp['hospital_name']?.toString() ?? '',
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged:
+                                  (_selectedDate != null && !_loadingHospitals)
+                                  ? (value) => _onHospitalSelected(value)
+                                  : null,
                             ),
+                            if (_loadingHospitals)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8.0),
+                                child: LinearProgressIndicator(),
+                              ),
+                            const SizedBox(height: 16),
+                            // Patient ID / Audit Type Dropdown
+                            if (_patientError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Text(
+                                  _patientError!,
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            DropdownButtonFormField<String>(
+                              value: _patientIdsOrAuditTypes.isEmpty
+                                  ? null
+                                  : _selectedPatientIdOrAuditType,
+                              decoration: const InputDecoration(
+                                labelText: 'Select Patient ID / Audit Type',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: _patientIdsOrAuditTypes
+                                  .map(
+                                    (id) => DropdownMenuItem(
+                                      value: id,
+                                      child: Text(id),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged:
+                                  (_selectedHospitalId != null &&
+                                      !_loadingPatients)
+                                  ? (value) {
+                                      setState(() {
+                                        _selectedPatientIdOrAuditType = value;
+                                        _record = null;
+                                        _error = null;
+                                      });
+                                    }
+                                  : null,
+                            ),
+                            if (_loadingPatients)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8.0),
+                                child: LinearProgressIndicator(),
+                              ),
                             const SizedBox(height: 24),
-
-                            // Dynamic fields with errors
-                            if (_auditType == 'Hospital and Patient Audit') ...[
-                              TextField(
-                                controller: _hospitalIdController,
-                                decoration: InputDecoration(
-                                  labelText: 'Hospital ID',
-                                  border: const OutlineInputBorder(),
-                                  errorText: _hospitalIdError,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _patientIdController,
-                                decoration: InputDecoration(
-                                  labelText: 'Case NO',
-                                  border: const OutlineInputBorder(),
-                                  errorText: _patientIdError,
-                                ),
-                              ),
-                            ] else ...[
-                              TextField(
-                                controller: _hospitalIdController,
-                                decoration: InputDecoration(
-                                  labelText: 'Hospital ID',
-                                  border: const OutlineInputBorder(),
-                                  errorText: _hospitalIdError,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _dateController,
-                                readOnly: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Date',
-                                  border: const OutlineInputBorder(),
-                                  suffixIcon: const Icon(Icons.calendar_today),
-                                  errorText: _dateError,
-                                ),
-                                onTap: () => _pickDate(context),
-                              ),
-                            ],
-                            const SizedBox(height: 24),
-
-                            // Run button
+                            // Run Button
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
@@ -380,15 +471,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     vertical: 14,
                                   ),
                                 ),
-                                onPressed: _loading ? null : _runSearch,
+                                onPressed:
+                                    (_selectedDate != null &&
+                                        _selectedHospitalId != null &&
+                                        _selectedPatientIdOrAuditType != null &&
+                                        !_loading)
+                                    ? _runSearch
+                                    : null,
                               ),
                             ),
-
                             if (_loading) ...[
                               const SizedBox(height: 16),
-                              const CircularProgressIndicator(),
+                              const LinearProgressIndicator(),
+                              if (_dotsAnimation != null)
+                                AnimatedBuilder(
+                                  animation: _dotsAnimation!,
+                                  builder: (context, child) {
+                                    final dots =
+                                        '.' * (_dotsAnimation!.value + 1);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        'Generating PDF$dots',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                             ],
-
                             if (_error != null) ...[
                               const SizedBox(height: 16),
                               Text(
@@ -396,7 +510,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 style: const TextStyle(color: Colors.red),
                               ),
                             ],
-
                             if (_record != null) ...[
                               const SizedBox(height: 24),
                               const Text(
@@ -440,8 +553,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(height: 16),
-
-                              // PDF Buttons: Preview and Download
                               Row(
                                 children: [
                                   Expanded(
@@ -460,18 +571,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       ),
                                       onPressed: _previewing
                                           ? null
-                                          : () async {
-                                              setState(
-                                                () => _previewing = true,
-                                              );
-                                              try {
-                                                await _previewPdf(); // your existing preview function
-                                              } finally {
-                                                setState(
-                                                  () => _previewing = false,
-                                                );
-                                              }
-                                            },
+                                          : _previewPdf,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
