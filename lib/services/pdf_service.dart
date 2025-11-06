@@ -23,6 +23,10 @@ class PdfService {
 
     final ttfRegular = pw.Font.ttf(ttfRegularData);
     final ttfBold = pw.Font.ttf(ttfBoldData);
+    final notoRegularData = await rootBundle.load(
+      'assets/fonts/NotoSansDevanagari-Regular.ttf',
+    );
+    final notoRegular = pw.Font.ttf(notoRegularData);
 
     // Create a ThemeData that uses Roboto as the base and bold fonts
     final theme = pw.ThemeData.withFont(base: ttfRegular, bold: ttfBold);
@@ -108,12 +112,12 @@ class PdfService {
                     ),
                     pw.SizedBox(height: 2),
                     pw.Text(
-                      '1. ${data['team_mem_1'] ?? ''}',
-                      style: pw.TextStyle(fontSize: 11),
+                      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
+                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
                     ),
                     pw.Text(
-                      '2. ${data['team_mem_2'] ?? ''}',
-                      style: pw.TextStyle(fontSize: 11),
+                      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
+                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
                     ),
                   ],
                 ),
@@ -614,23 +618,55 @@ class PdfService {
                 3,
                 'Admission slip / Discharge summary sheet (if any)',
                 data['admission_slip'] as String?,
-                // remark: data['admission_slip_yes'] as String?,
+                data['discharge_summary'] as String?,
+                documentType: 'admission',
               ),
 
               // 4. In case of out-of-pocket expenses:\n If any money taken, a) attached receipt proof, b) Written and signed…
               (() {
-                final outPocket = (data['out_pocket_ex'] ?? '') == '1'
-                    ? 'Yes'
-                    : 'No';
-                final receiptOope =
-                    (data['receipt_oope'] ?? '').toString().isNotEmpty
-                    ? 'a) Yes'
-                    : 'a) No';
-                final complaintOope =
-                    (data['complaint_oope'] ?? '').toString().isNotEmpty
+                // Check if any out-of-pocket expense index exists
+                bool hasOutPocketExpense = false;
+                int index = 1;
+                while (true) {
+                  final indexKey = 'out_pocket_ex_index_$index';
+                  if (!data.containsKey(indexKey)) break;
+                  if ((data[indexKey] ?? '').toString().isNotEmpty) {
+                    hasOutPocketExpense = true;
+                    break;
+                  }
+                  index++;
+                }
+                final outPocket = hasOutPocketExpense ? 'Yes' : 'No';
+
+                // Check for receipt proofs (indexed)
+                bool hasReceiptProof = false;
+                index = 1;
+                while (true) {
+                  final receiptKey = 'receipt_oope_$index';
+                  if (!data.containsKey(receiptKey)) break;
+                  if ((data[receiptKey] ?? '').toString().isNotEmpty) {
+                    hasReceiptProof = true;
+                    break;
+                  }
+                  index++;
+                }
+                final receiptOope = hasReceiptProof ? 'a) Yes' : 'a) No';
+
+                // Check for written complaint or video recording
+                final hasWrittenComplaint =
+                    (data['written_complaint_oope'] ?? '')
+                        .toString()
+                        .isNotEmpty;
+                final hasVideoComplaint = (data['video_complaint_oope'] ?? '')
+                    .toString()
+                    .isNotEmpty;
+                final complaintStatus =
+                    (hasWrittenComplaint || hasVideoComplaint)
                     ? 'b) Yes'
                     : 'b) No';
-                final tickCell = '$outPocket\n$receiptOope\n$complaintOope';
+
+                final tickCell = '$outPocket\n$receiptOope\n$complaintStatus';
+
                 return pw.TableRow(
                   children: [
                     _buildChecklistCell('4'),
@@ -651,14 +687,14 @@ class PdfService {
                 5,
                 'Visit the pharmacy and check the registers for the medicines dispensed',
                 data['pharm_reg'] as String?,
-                remark: data['pharm_reg_re'] as String?,
+                null,
               ),
               // 6. Lab register/X ray/USG
               _buildAttachedDocRow(
                 6,
                 'Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries',
                 data['lab_reg'] as String?,
-                remark: data['lab_reg_re'] as String?,
+                null,
               ),
             ],
           ),
@@ -715,71 +751,105 @@ class PdfService {
     );
 
     // Define which JSON fields map to which headings:
-    final List<Map<String, String>> imageFields = [
-      {'heading': 'Patient photo with PMJAY card', 'key': 'patient_photo'},
-      {'heading': 'Patient PMJAY card', 'key': 'pmjay_card'},
-      {'heading': 'Admission slip', 'key': 'admission_slip_yes'},
+    final List<Map<String, dynamic>> imageFields = [
+      {
+        'heading': 'Patient photo with PMJAY card',
+        'baseKey': 'patient_photo',
+        'hasMultiple': false,
+      },
+      {
+        'heading': 'Patient PMJAY card',
+        'baseKey': 'pmjay_card',
+        'hasMultiple': false,
+      },
+      {
+        'heading': 'Admission slip',
+        'baseKey': 'admission_slip_yes',
+        'hasMultiple': true,
+      },
+      {
+        'heading': 'Discharge Summary Sheet',
+        'baseKey': 'discharge_summary_yes',
+        'hasMultiple': true,
+      },
       {
         'heading': 'Receipt proof (out-of-pocket expenses)',
-        'key': 'receipt_oope',
+        'baseKey': 'receipt_oope',
+        'hasMultiple': true,
       },
       {
         'heading': 'Complaint proof (out-of-pocket expenses)',
-        'key': 'complaint_oope',
+        'baseKeys': ['written_complaint_oope', 'video_complaint_oope'],
+        'hasMultiple': false,
+        'type': 'complaint',
       },
-      {'heading': 'Pharmacy register', 'key': 'pharm_reg'},
-      {'heading': 'Lab register/X ray/USG', 'key': 'lab_reg'},
+      {
+        'heading': 'Pharmacy register',
+        'baseKey': 'pharm_reg',
+        'hasMultiple': true,
+      },
+      {
+        'heading': 'Lab register/X ray/USG',
+        'baseKey': 'lab_reg',
+        'hasMultiple': true,
+      },
     ];
 
     // final List<Map<String, dynamic>> fetchedImages = [];
     final List<String> missingImages = [];
     for (final field in imageFields) {
-      final heading = field['heading']!;
-      final keyName = field['key']!;
-      final rawUrl = data[keyName] as String?;
-      print(rawUrl);
-      final Uint8List? imgBytes = await SurveyCTOService.fetchImageBytes(
-        rawUrl,
-      );
-      print(imgBytes);
-      if (imgBytes != null && _isSupportedImage(imgBytes)) {
-        print("Inside If");
-        pdf.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat.a4,
-            margin: const pw.EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-            build: (context) {
-              final availableWidth =
-                  PdfPageFormat.a4.availableWidth - 40; // 20 left + 20 right
-              final availableHeight =
-                  PdfPageFormat.a4.availableHeight -
-                  80; // 20 top + 20 bottom + 16 + heading
-              return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    heading,
-                    style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.SizedBox(height: 16),
-                  pw.Center(
-                    child: pw.Image(
-                      pw.MemoryImage(imgBytes),
-                      width: availableWidth,
-                      height: availableHeight,
-                      fit: pw.BoxFit.contain,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      } else {
+      final heading = field['heading'] as String;
+      final baseKey = field['baseKeys'] ?? field['baseKey'];
+      final hasMultiple = field['hasMultiple'] as bool;
+      final type = field['type'] as String?;
+
+      final urls = getImageUrls(data, baseKey, hasMultiple, type: type);
+
+      if (urls.isEmpty) {
         missingImages.add(heading);
+        continue;
+      }
+
+      for (final url in urls) {
+        final Uint8List? imgBytes = await SurveyCTOService.fetchImageBytes(url);
+
+        if (imgBytes != null && _isSupportedImage(imgBytes)) {
+          pdf.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a4,
+              margin: const pw.EdgeInsets.symmetric(
+                vertical: 20,
+                horizontal: 20,
+              ),
+              build: (context) {
+                final availableWidth = PdfPageFormat.a4.availableWidth - 40;
+                final availableHeight = PdfPageFormat.a4.availableHeight - 80;
+
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      heading,
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 16),
+                    pw.Center(
+                      child: pw.Image(
+                        pw.MemoryImage(imgBytes),
+                        width: availableWidth,
+                        height: availableHeight,
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        }
       }
     }
 
@@ -828,6 +898,45 @@ class PdfService {
     return pdf.save();
   }
 
+  static List<String> getImageUrls(
+    Map<String, dynamic> data,
+    dynamic baseKey,
+    bool hasMultiple, {
+    String? type,
+  }) {
+    // Handle complaint proof special case
+    if (type == 'complaint') {
+      final urls = <String>[];
+      final baseKeys = baseKey as List<String>;
+
+      for (final key in baseKeys) {
+        final url = data[key]?.toString() ?? '';
+        if (url.isNotEmpty) {
+          urls.add(url);
+        }
+      }
+      return urls;
+    }
+
+    // Original logic for other fields
+    if (!hasMultiple) {
+      final url = data[baseKey as String]?.toString() ?? '';
+      return url.isNotEmpty ? [url] : [];
+    }
+
+    final urls = <String>[];
+    var index = 1;
+    while (true) {
+      final imageKey = '${baseKey as String}_$index';
+      final imageUrl = data[imageKey]?.toString() ?? '';
+      if (imageUrl.isEmpty) break;
+      urls.add(imageUrl);
+      index++;
+    }
+    print(urls);
+    return urls;
+  }
+
   static Future<Uint8List> generateHospitalAuditReport(
     Map<String, dynamic> data,
   ) async {
@@ -838,6 +947,10 @@ class PdfService {
     final ttfBoldData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
     final ttfRegular = pw.Font.ttf(ttfRegularData);
     final ttfBold = pw.Font.ttf(ttfBoldData);
+    final notoRegularData = await rootBundle.load(
+      'assets/fonts/NotoSansDevanagari-Regular.ttf',
+    );
+    final notoRegular = pw.Font.ttf(notoRegularData);
     final theme = pw.ThemeData.withFont(base: ttfRegular, bold: ttfBold);
 
     // Helper for IST time
@@ -951,12 +1064,12 @@ class PdfService {
                     ),
                     pw.SizedBox(height: 2),
                     pw.Text(
-                      '1. ${data['team_mem_1'] ?? ''}',
-                      style: pw.TextStyle(fontSize: 11),
+                      '1. ${PdfService.decodeUnicode(data['team_mem_1'] as String?)}',
+                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
                     ),
                     pw.Text(
-                      '2. ${data['team_mem_2'] ?? ''}',
-                      style: pw.TextStyle(fontSize: 11),
+                      '2. ${PdfService.decodeUnicode(data['team_mem_2'] as String?)}',
+                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
                     ),
                   ],
                 ),
@@ -1388,24 +1501,64 @@ class PdfService {
   static pw.TableRow _buildAttachedDocRow(
     int srNo,
     String documentName,
-    String? tickValue, {
-    String? remark = '',
+    String? firstValue,
+    String? secondValue, {
+    String? documentType = 'default',
   }) {
-    String tickText = '';
-    if (tickValue != null &&
-        tickValue.toString().isNotEmpty &&
-        tickValue != '0')
-      tickText = 'Yes';
-    else
-      tickText = 'No';
+    bool hasFirstDoc = false;
+    bool hasSecondDoc = false;
+
+    switch (documentType) {
+      case 'admission':
+        // For Admission slip / Discharge summary
+        hasFirstDoc =
+            firstValue != null &&
+            firstValue.toString().isNotEmpty &&
+            firstValue != '0'; // admission_slip
+        hasSecondDoc =
+            secondValue != null &&
+            secondValue.toString().isNotEmpty &&
+            secondValue != '0'; // discharge_summary
+        break;
+
+      case 'complaint':
+        // For Written and signed / video recording
+        hasFirstDoc =
+            firstValue != null &&
+            firstValue.toString().isNotEmpty &&
+            firstValue != '0'; // complaint_written
+        hasSecondDoc =
+            secondValue != null &&
+            secondValue.toString().isNotEmpty &&
+            secondValue != '0'; // complaint_video
+        break;
+
+      default:
+        hasFirstDoc =
+            firstValue != null &&
+            firstValue.toString().isNotEmpty &&
+            firstValue != '0';
+        hasSecondDoc = false;
+    }
+
+    // If either exists, show Yes
+    final tickText = (hasFirstDoc || hasSecondDoc) ? 'Yes' : 'No';
 
     return pw.TableRow(
       children: [
         _buildChecklistCell(srNo.toString()),
         _buildChecklistCell(documentName, wrap: true),
         _buildChecklistCell(tickText),
-        _buildChecklistCell(remark ?? '', wrap: true),
+        _buildChecklistCell('', wrap: true),
       ],
+    );
+  }
+
+  static String decodeUnicode(String? input) {
+    if (input == null) return '';
+    return input.replaceAllMapped(
+      RegExp(r'\\u([0-9a-fA-F]{4})'),
+      (Match m) => String.fromCharCode(int.parse(m.group(1)!, radix: 16)),
     );
   }
 }

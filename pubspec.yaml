@@ -77,6 +77,9 @@ flutter:
           weight: 400
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
+    - family: NotoSansDevanagari
+      fonts:
+        - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
   # uses-material-design: true
 
   # The following line ensures that the Material Icons font is

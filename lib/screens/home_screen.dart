@@ -429,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ? null
                                   : _selectedPatientIdOrAuditType,
                               decoration: const InputDecoration(
-                                labelText: 'Select Patient ID / Audit Type',
+                                labelText: 'Select Case No / Audit Type',
                                 border: OutlineInputBorder(),
                               ),
                               items: _patientIdsOrAuditTypes

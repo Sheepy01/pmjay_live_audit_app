@@ -53,11 +53,10 @@ class SurveyCTOService {
     String date,
   ) async {
     final data = await fetchFormData();
-    final patientIds = <String>{};
+    final caseNos = <String>{};
     bool hasHospitalAuditOnly = false;
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
-      final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
       String entryDate = '';
@@ -75,16 +74,14 @@ class SurveyCTOService {
         }
       }
       if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
-        if (entryPatientId.isNotEmpty || entryCaseNo.isNotEmpty) {
-          patientIds.add(
-            entryPatientId.isNotEmpty ? entryPatientId : entryCaseNo,
-          );
+        if (entryCaseNo.isNotEmpty) {
+          caseNos.add(entryCaseNo);
         } else {
           hasHospitalAuditOnly = true;
         }
       }
     }
-    final result = patientIds.toList();
+    final result = caseNos.toList();
     if (hasHospitalAuditOnly) result.add('Hospital Audit Only');
     return result;
   }
@@ -133,7 +130,6 @@ class SurveyCTOService {
     final data = await fetchFormData();
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
-      final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
       String entryDate = '';
@@ -152,8 +148,7 @@ class SurveyCTOService {
       }
       if (entryHospitalId == hospitalId.trim() &&
           entryDate == date.trim() &&
-          (entryPatientId == patientId.trim() ||
-              entryCaseNo == patientId.trim())) {
+          entryCaseNo == patientId.trim()) {
         return _normalizeRecord(entry);
       }
     }
