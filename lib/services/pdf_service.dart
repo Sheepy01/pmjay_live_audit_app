@@ -6,13 +6,59 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'surveycto_service.dart';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 
 class PdfService {
+  static Future<Uint8List?> textToImage(String text) async {
+    // Create a ParagraphBuilder
+    final builder =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.left,
+              fontSize: 14,
+              fontFamily: 'NotoSansDevanagari',
+            ),
+          )
+          ..pushStyle(ui.TextStyle(color: const Color(0xFF000000)))
+          ..addText(text);
+
+    // Build the paragraph
+    final paragraph = builder.build();
+    paragraph.layout(const ui.ParagraphConstraints(width: 300));
+
+    // Create a picture recorder
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Paint white background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, 300, paragraph.height),
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+
+    // Draw the text
+    canvas.drawParagraph(paragraph, Offset.zero);
+
+    // Convert to image
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(300.ceil(), paragraph.height.ceil());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+
+    return byteData?.buffer.asUint8List();
+  }
+
   /// Generates the “Checklist for Beneficiary Audit” PDF in A4 portrait.
   /// Embeds Roboto (Regular + Bold) for full Unicode support.
   static Future<Uint8List> generateAuditReport(
     Map<String, dynamic> data,
   ) async {
+    final team1Image = await textToImage(
+      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
+    );
+    final team2Image = await textToImage(
+      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
+    );
     // ─────────────────────────────────────────────────────────────
     // 1) Load TTF font files from assets
     // ─────────────────────────────────────────────────────────────
@@ -111,14 +157,10 @@ class PdfService {
                       ),
                     ),
                     pw.SizedBox(height: 2),
-                    pw.Text(
-                      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
-                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
-                    ),
-                    pw.Text(
-                      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
-                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
-                    ),
+                    if (team1Image != null)
+                      pw.Image(pw.MemoryImage(team1Image), height: 20),
+                    if (team2Image != null)
+                      pw.Image(pw.MemoryImage(team2Image), height: 20),
                   ],
                 ),
               ),
@@ -810,7 +852,11 @@ class PdfService {
         continue;
       }
 
-      for (final url in urls) {
+      // Add index to heading for multiple images
+      for (int i = 0; i < urls.length; i++) {
+        final url = urls[i];
+        final indexedHeading = hasMultiple ? '$heading (${i + 1})' : heading;
+
         final Uint8List? imgBytes = await SurveyCTOService.fetchImageBytes(url);
 
         if (imgBytes != null && _isSupportedImage(imgBytes)) {
@@ -829,7 +875,7 @@ class PdfService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text(
-                      heading,
+                      indexedHeading, // Use the indexed heading here
                       style: pw.TextStyle(
                         fontSize: 18,
                         fontWeight: pw.FontWeight.bold,
@@ -933,13 +979,18 @@ class PdfService {
       urls.add(imageUrl);
       index++;
     }
-    print(urls);
     return urls;
   }
 
   static Future<Uint8List> generateHospitalAuditReport(
     Map<String, dynamic> data,
   ) async {
+    final team1Image = await textToImage(
+      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
+    );
+    final team2Image = await textToImage(
+      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
+    );
     // Load fonts
     final ttfRegularData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -1063,14 +1114,10 @@ class PdfService {
                       ),
                     ),
                     pw.SizedBox(height: 2),
-                    pw.Text(
-                      '1. ${PdfService.decodeUnicode(data['team_mem_1'] as String?)}',
-                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
-                    ),
-                    pw.Text(
-                      '2. ${PdfService.decodeUnicode(data['team_mem_2'] as String?)}',
-                      style: pw.TextStyle(font: notoRegular, fontSize: 11),
-                    ),
+                    if (team1Image != null)
+                      pw.Image(pw.MemoryImage(team1Image), height: 20),
+                    if (team2Image != null)
+                      pw.Image(pw.MemoryImage(team2Image), height: 20),
                   ],
                 ),
               ),
