@@ -762,23 +762,25 @@ class PdfService {
           ),
           pw.SizedBox(height: 12),
 
-          // White space area for “Significant Findings”
+          // SIGNIFICANT FINDINGS
           pw.Text(
             'Significant Findings:',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
           ),
-          pw.SizedBox(
-            height: 40,
-          ), // leave blank white space (about 40 points high)
+          pw.SizedBox(height: 10),
+          pw.Text(data['sig_find'] ?? '', style: pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 20),
 
+          // RECOMMENDATIONS
           pw.Text(
             'Recommendations:',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
           ),
-          pw.SizedBox(
-            height: 40,
-          ), // leave blank white space (about 40 points high)
-          // Signature line (blank)
+          pw.SizedBox(height: 10),
+          pw.Text(data['recomm'] ?? '', style: pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 20),
+
+          // Signature line
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
@@ -1335,6 +1337,7 @@ class PdfService {
           pw.SizedBox(height: 12),
 
           // SIGNIFICANT FINDINGS
+          // SIGNIFICANT FINDINGS
           pw.Text(
             'Significant Findings:',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
@@ -1350,8 +1353,9 @@ class PdfService {
           ),
           pw.SizedBox(height: 10),
           pw.Text(data['recomm'] ?? '', style: pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 20),
 
-          // SIGNATURE
+          // Signature line
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
@@ -1468,11 +1472,15 @@ class PdfService {
     String text, {
     bool bold = false,
     bool wrap = false,
+    bool isRemark = false, // Add this parameter
   }) {
+    // Show dash for empty remarks
+    final displayText = (isRemark && text.isEmpty) ? '-' : text;
+
     return pw.Padding(
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(
-        text,
+        displayText,
         style: pw.TextStyle(
           fontSize: 10,
           fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
@@ -1514,7 +1522,7 @@ class PdfService {
         _buildChecklistCell(particular, wrap: true),
         _buildChecklistCell(yesText),
         _buildChecklistCell(noText),
-        _buildChecklistCell(remarkText, wrap: true),
+        _buildChecklistCell(remarkText, wrap: true, isRemark: true),
       ],
     );
   }
@@ -1596,7 +1604,7 @@ class PdfService {
         _buildChecklistCell(srNo.toString()),
         _buildChecklistCell(documentName, wrap: true),
         _buildChecklistCell(tickText),
-        _buildChecklistCell('', wrap: true),
+        _buildChecklistCell('', wrap: true, isRemark: true),
       ],
     );
   }
