@@ -48,17 +48,20 @@ class SurveyCTOService {
   }
 
   // Fetch patient IDs and audit type for a hospital and date
-  static Future<List<String>> fetchPatientIdsOrAuditType(
+  static Future<List<Map<String, String>>> fetchPatientIdsOrAuditType(
     String hospitalId,
     String date,
   ) async {
     final data = await fetchFormData();
-    final caseNos = <String>{};
+    final patientMap = <String, Map<String, String>>{};
     bool hasHospitalAuditOnly = false;
+
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
+      final entryPatientName = (entry['patient_name'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
+
       String entryDate = '';
       if (entryDateRaw.isNotEmpty) {
         try {
@@ -73,16 +76,34 @@ class SurveyCTOService {
           }
         }
       }
+
       if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
         if (entryCaseNo.isNotEmpty) {
-          caseNos.add(entryCaseNo);
+          // Create a unique key combining case_no and patient_name
+          final displayText = entryPatientName.isNotEmpty
+              ? '$entryCaseNo - $entryPatientName'
+              : entryCaseNo;
+          patientMap[displayText] = {
+            'case_no': entryCaseNo,
+            'patient_name': entryPatientName,
+            'display': displayText,
+          };
         } else {
           hasHospitalAuditOnly = true;
         }
       }
     }
-    final result = caseNos.toList();
-    if (hasHospitalAuditOnly) result.add('Hospital Audit Only');
+
+    final result = patientMap.values.toList();
+
+    if (hasHospitalAuditOnly) {
+      result.add({
+        'case_no': '',
+        'patient_name': '',
+        'display': 'Hospital Audit Only',
+      });
+    }
+
     return result;
   }
 

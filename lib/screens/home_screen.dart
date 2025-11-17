@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _dateController = TextEditingController();
 
   List<Map<String, dynamic>> _hospitals = [];
-  List<String> _patientIdsOrAuditTypes = [];
+  List<Map<String, String>> _patientIdsOrAuditTypes = [];
 
   bool _loadingHospitals = false;
   bool _loadingPatients = false;
@@ -146,6 +146,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
     try {
       Map<String, dynamic>? record;
+
+      final selectedItem = _patientIdsOrAuditTypes.firstWhere(
+        (item) => item['display'] == _selectedPatientIdOrAuditType,
+        orElse: () => {},
+      );
+
       if (_selectedPatientIdOrAuditType == 'Hospital Audit Only') {
         record = await SurveyCTOService.findHospitalAudit(
           _selectedHospitalId!,
@@ -154,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         record = await SurveyCTOService.findHospitalPatientAudit(
           _selectedHospitalId!,
-          _selectedPatientIdOrAuditType!,
+          selectedItem['case_no']!,
           _dateController.text,
         );
       }
@@ -434,9 +440,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               ),
                               items: _patientIdsOrAuditTypes
                                   .map(
-                                    (id) => DropdownMenuItem(
-                                      value: id,
-                                      child: Text(id),
+                                    (item) => DropdownMenuItem<String>(
+                                      value: item['display']!,
+                                      child: Text(item['display']!),
                                     ),
                                   )
                                   .toList(),
