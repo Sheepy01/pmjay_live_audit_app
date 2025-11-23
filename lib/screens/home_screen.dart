@@ -401,8 +401,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   .map(
                                     (hosp) => DropdownMenuItem<String>(
                                       value: hosp['hospital_id']?.toString(),
-                                      child: Text(
-                                        hosp['hospital_name']?.toString() ?? '',
+                                      child: SizedBox(
+                                        width:
+                                            MediaQuery.of(context).size.width *
+                                            0.6, // optional
+                                        child: Text(
+                                          hosp['hospital_name']?.toString() ??
+                                              '',
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                        ),
                                       ),
                                     ),
                                   )
@@ -442,7 +451,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   .map(
                                     (item) => DropdownMenuItem<String>(
                                       value: item['display']!,
-                                      child: Text(item['display']!),
+                                      child: Text(
+                                        item['display']!,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                      ),
                                     ),
                                   )
                                   .toList(),

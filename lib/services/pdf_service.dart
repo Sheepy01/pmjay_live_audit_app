@@ -10,7 +10,19 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 
 class PdfService {
+  static bool _containsNonAscii(String text) {
+    for (int i = 0; i < text.length; i++) {
+      if (text.codeUnitAt(i) > 127) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static Future<Uint8List?> textToImage(String text) async {
+    if (!_containsNonAscii(text)) {
+      return null; // Return null for English text
+    }
     // Create a ParagraphBuilder
     final builder =
         ui.ParagraphBuilder(
@@ -53,12 +65,15 @@ class PdfService {
   static Future<Uint8List> generateAuditReport(
     Map<String, dynamic> data,
   ) async {
-    final team1Image = await textToImage(
-      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
-    );
-    final team2Image = await textToImage(
-      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
-    );
+    final team1Text = decodeUnicode(data['team_mem_1'] as String?);
+    final team2Text = decodeUnicode(data['team_mem_2'] as String?);
+
+    final team1Image = _containsNonAscii(team1Text)
+        ? await textToImage(team1Text)
+        : null;
+    final team2Image = _containsNonAscii(team2Text)
+        ? await textToImage(team2Text)
+        : null;
     // ─────────────────────────────────────────────────────────────
     // 1) Load TTF font files from assets
     // ─────────────────────────────────────────────────────────────
@@ -158,9 +173,19 @@ class PdfService {
                     ),
                     pw.SizedBox(height: 2),
                     if (team1Image != null)
-                      pw.Image(pw.MemoryImage(team1Image), height: 20),
+                      pw.Image(pw.MemoryImage(team1Image), height: 20)
+                    else
+                      pw.Text(
+                        '1. $team1Text',
+                        style: pw.TextStyle(fontSize: 11),
+                      ),
                     if (team2Image != null)
-                      pw.Image(pw.MemoryImage(team2Image), height: 20),
+                      pw.Image(pw.MemoryImage(team2Image), height: 20)
+                    else
+                      pw.Text(
+                        '2. $team2Text',
+                        style: pw.TextStyle(fontSize: 11),
+                      ),
                   ],
                 ),
               ),
@@ -662,6 +687,11 @@ class PdfService {
                 data['admission_slip'] as String?,
                 data['discharge_summary'] as String?,
                 documentType: 'admission',
+                remark: (data['admission_slip_re'] ?? '').toString().isNotEmpty
+                    ? data['admission_slip_re'] as String?
+                    : (data['discharge_summary_re'] ?? '').toString().isNotEmpty
+                    ? data['discharge_summary_re'] as String?
+                    : null,
               ),
 
               // 4. In case of out-of-pocket expenses:\n If any money taken, a) attached receipt proof, b) Written and signed…
@@ -693,6 +723,12 @@ class PdfService {
                   index++;
                 }
                 final receiptOope = hasReceiptProof ? 'a) Yes' : 'a) No';
+                final receiptRemarkText = (data['oope_receipts_re'] ?? '')
+                    .toString()
+                    .trim();
+                final receiptRemark = receiptRemarkText.isNotEmpty
+                    ? 'a) $receiptRemarkText'
+                    : '';
 
                 // Check for written complaint or video recording
                 final hasWrittenComplaint =
@@ -707,7 +743,16 @@ class PdfService {
                     ? 'b) Yes'
                     : 'b) No';
 
+                final complaintRemarkText = (data['add_proof_oope_re'] ?? '')
+                    .toString()
+                    .trim();
+                final complaintRemark = complaintRemarkText.isNotEmpty
+                    ? 'b) $complaintRemarkText'
+                    : '';
+
                 final tickCell = '$outPocket\n$receiptOope\n$complaintStatus';
+                final remarksCell =
+                    '$receiptRemark${receiptRemark.isNotEmpty && complaintRemark.isNotEmpty ? '\n' : ''}$complaintRemark';
 
                 return pw.TableRow(
                   children: [
@@ -720,24 +765,68 @@ class PdfService {
                       wrap: true,
                     ),
                     _buildChecklistCell(tickCell, wrap: true),
-                    _buildChecklistCell('', wrap: true),
+                    _buildChecklistCell(
+                      remarksCell,
+                      wrap: true,
+                      isRemark: true,
+                    ),
                   ],
                 );
               })(),
               // 5. Pharmacy register
-              _buildAttachedDocRow(
-                5,
-                'Visit the pharmacy and check the registers for the medicines dispensed',
-                data['pharm_reg'] as String?,
-                null,
-              ),
+              (() {
+                bool hasPharmReg = false;
+                int idx = 1;
+                while (true) {
+                  final key = 'pharm_reg_$idx';
+                  if (!data.containsKey(key)) break;
+                  if ((data[key] ?? '').toString().isNotEmpty) {
+                    hasPharmReg = true;
+                    break;
+                  }
+                  idx++;
+                }
+                final tick = hasPharmReg ? 'Yes' : 'No';
+                final remark = (data['pharm_reg_re'] ?? '').toString();
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('5'),
+                    _buildChecklistCell(
+                      'Visit the pharmacy and check the registers for the medicines dispensed',
+                      wrap: true,
+                    ),
+                    _buildChecklistCell(tick),
+                    _buildChecklistCell(remark, wrap: true, isRemark: true),
+                  ],
+                );
+              })(),
               // 6. Lab register/X ray/USG
-              _buildAttachedDocRow(
-                6,
-                'Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries',
-                data['lab_reg'] as String?,
-                null,
-              ),
+              (() {
+                bool hasLabReg = false;
+                int idx = 1;
+                while (true) {
+                  final key = 'lab_reg_$idx';
+                  if (!data.containsKey(key)) break;
+                  if ((data[key] ?? '').toString().isNotEmpty) {
+                    hasLabReg = true;
+                    break;
+                  }
+                  idx++;
+                }
+                final tick = hasLabReg ? 'Yes' : 'No';
+                final remark = (data['lab_reg_re'] ?? '').toString();
+                return pw.TableRow(
+                  children: [
+                    _buildChecklistCell('6'),
+                    _buildChecklistCell(
+                      'Check the lab registers/X ray, USG for the sample collected and reports of the beneficiaries',
+                      wrap: true,
+                    ),
+                    _buildChecklistCell(tick),
+                    _buildChecklistCell(remark, wrap: true, isRemark: true),
+                  ],
+                );
+              })(),
             ],
           ),
           pw.SizedBox(height: 12),
@@ -987,12 +1076,15 @@ class PdfService {
   static Future<Uint8List> generateHospitalAuditReport(
     Map<String, dynamic> data,
   ) async {
-    final team1Image = await textToImage(
-      '1. ${decodeUnicode(data['team_mem_1'] as String?)}',
-    );
-    final team2Image = await textToImage(
-      '2. ${decodeUnicode(data['team_mem_2'] as String?)}',
-    );
+    final team1Text = decodeUnicode(data['team_mem_1'] as String?);
+    final team2Text = decodeUnicode(data['team_mem_2'] as String?);
+
+    final team1Image = _containsNonAscii(team1Text)
+        ? await textToImage(team1Text)
+        : null;
+    final team2Image = _containsNonAscii(team2Text)
+        ? await textToImage(team2Text)
+        : null;
     // Load fonts
     final ttfRegularData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -1117,9 +1209,19 @@ class PdfService {
                     ),
                     pw.SizedBox(height: 2),
                     if (team1Image != null)
-                      pw.Image(pw.MemoryImage(team1Image), height: 20),
+                      pw.Image(pw.MemoryImage(team1Image), height: 20)
+                    else
+                      pw.Text(
+                        '1. $team1Text',
+                        style: pw.TextStyle(fontSize: 11),
+                      ),
                     if (team2Image != null)
-                      pw.Image(pw.MemoryImage(team2Image), height: 20),
+                      pw.Image(pw.MemoryImage(team2Image), height: 20)
+                    else
+                      pw.Text(
+                        '2. $team2Text',
+                        style: pw.TextStyle(fontSize: 11),
+                      ),
                   ],
                 ),
               ),
@@ -1559,6 +1661,7 @@ class PdfService {
     String? firstValue,
     String? secondValue, {
     String? documentType = 'default',
+    String? remark, // added
   }) {
     bool hasFirstDoc = false;
     bool hasSecondDoc = false;
@@ -1604,7 +1707,8 @@ class PdfService {
         _buildChecklistCell(srNo.toString()),
         _buildChecklistCell(documentName, wrap: true),
         _buildChecklistCell(tickText),
-        _buildChecklistCell('', wrap: true, isRemark: true),
+        // use provided remark (may be null) and mark it as remark cell
+        _buildChecklistCell(remark ?? '', wrap: true, isRemark: true),
       ],
     );
   }
