@@ -245,24 +245,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         pdfData = await PdfService.generateAuditReport(_record!);
       }
-      final hospitalId = _record!['hospital_id'] ?? 'hospital';
+      final hospitalId =
+          (_record!['hospital_id'] ?? '').toString().trim().isNotEmpty
+          ? (_record!['hospital_id'] ?? 'hospital').toString()
+          : (_record!['hospital_id_manual'] ?? 'hospital').toString();
+
       final date = DateFormat('yyyyMMdd').format(DateTime.now());
-      final fileName = '${hospitalId}_$date.pdf';
       Directory? downloadsDir;
       if (Platform.isAndroid) {
         downloadsDir = Directory('/storage/emulated/0/Download');
       } else if (Platform.isIOS) {
         downloadsDir = await getApplicationDocumentsDirectory();
       }
-      final filePath = '${downloadsDir!.path}/$fileName';
-      final file = File(filePath);
+
+      // Generate unique filename if file already exists
+      String fileName = '${hospitalId}_$date.pdf';
+      String filePath = '${downloadsDir!.path}/$fileName';
+      File file = File(filePath);
+
+      int counter = 1;
+      while (file.existsSync()) {
+        // If file exists, append timestamp or counter to filename
+        final timestamp = DateFormat('HHmmss').format(DateTime.now());
+        fileName = '${hospitalId}_${date}_${timestamp}_($counter).pdf';
+        filePath = '${downloadsDir.path}/$fileName';
+        file = File(filePath);
+        counter++;
+      }
+
       await file.writeAsBytes(pdfData);
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text("Success"),
-          content: Text("PDF saved successfully!\n\nPath:\n$filePath"),
+          content: Text(
+            "PDF saved successfully!\n\nFilename: $fileName\n\nPath:\n$filePath",
+          ),
           actions: [
             TextButton(
               onPressed: () {

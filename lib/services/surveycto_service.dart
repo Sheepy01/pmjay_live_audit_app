@@ -35,11 +35,29 @@ class SurveyCTOService {
       }
       if (entryDate == date.trim()) {
         final hospitalId = (entry['hospital_id'] ?? '').toString().trim();
+        final hospitalIdManual = (entry['hospital_id_manual'] ?? '')
+            .toString()
+            .trim();
+
+        // Use hospital_id, fallback to hospital_id_manual
+        final finalHospitalId = hospitalId.isNotEmpty
+            ? hospitalId
+            : hospitalIdManual;
+
         final hospitalName = (entry['hospital_name'] ?? '').toString().trim();
-        if (hospitalId.isNotEmpty && hospitalName.isNotEmpty) {
-          hospitals[hospitalId] = {
-            'hospital_id': hospitalId,
-            'hospital_name': hospitalName,
+        final hospitalNameManual = (entry['hospital_name_manual'] ?? '')
+            .toString()
+            .trim();
+
+        // Use hospital_name, fallback to hospital_name_manual
+        final finalHospitalName = hospitalName.isNotEmpty
+            ? hospitalName
+            : hospitalNameManual;
+
+        if (finalHospitalId.isNotEmpty && finalHospitalName.isNotEmpty) {
+          hospitals[finalHospitalId] = {
+            'hospital_id': finalHospitalId,
+            'hospital_name': finalHospitalName,
           };
         }
       }
@@ -58,6 +76,15 @@ class SurveyCTOService {
 
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryHospitalIdManual = (entry['hospital_id_manual'] ?? '')
+          .toString()
+          .trim();
+
+      // Use hospital_id, fallback to hospital_id_manual
+      final finalHospitalId = entryHospitalId.isNotEmpty
+          ? entryHospitalId
+          : entryHospitalIdManual;
+
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
       final entryPatientName = (entry['patient_name'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
@@ -77,7 +104,7 @@ class SurveyCTOService {
         }
       }
 
-      if (entryHospitalId == hospitalId.trim() && entryDate == date.trim()) {
+      if (finalHospitalId == hospitalId.trim() && entryDate == date.trim()) {
         if (entryCaseNo.isNotEmpty) {
           // Create a unique key combining case_no and patient_name
           final displayText = entryPatientName.isNotEmpty
@@ -115,9 +142,19 @@ class SurveyCTOService {
     final data = await fetchFormData();
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryHospitalIdManual = (entry['hospital_id_manual'] ?? '')
+          .toString()
+          .trim();
+
+      // Use hospital_id, fallback to hospital_id_manual
+      final finalHospitalId = entryHospitalId.isNotEmpty
+          ? entryHospitalId
+          : entryHospitalIdManual;
+
       final entryPatientId = (entry['patient_id'] ?? '').toString().trim();
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
+
       String entryDate = '';
       if (entryDateRaw.isNotEmpty) {
         try {
@@ -132,7 +169,8 @@ class SurveyCTOService {
           }
         }
       }
-      if (entryHospitalId == hospitalId.trim() &&
+
+      if (finalHospitalId == hospitalId.trim() &&
           entryDate == date.trim() &&
           entryPatientId.isEmpty &&
           entryCaseNo.isEmpty) {
@@ -151,8 +189,18 @@ class SurveyCTOService {
     final data = await fetchFormData();
     for (final entry in data) {
       final entryHospitalId = (entry['hospital_id'] ?? '').toString().trim();
+      final entryHospitalIdManual = (entry['hospital_id_manual'] ?? '')
+          .toString()
+          .trim();
+
+      // Use hospital_id, fallback to hospital_id_manual
+      final finalHospitalId = entryHospitalId.isNotEmpty
+          ? entryHospitalId
+          : entryHospitalIdManual;
+
       final entryCaseNo = (entry['case_no'] ?? '').toString().trim();
       final entryDateRaw = (entry['date'] ?? '').toString().trim();
+
       String entryDate = '';
       if (entryDateRaw.isNotEmpty) {
         try {
@@ -167,7 +215,8 @@ class SurveyCTOService {
           }
         }
       }
-      if (entryHospitalId == hospitalId.trim() &&
+
+      if (finalHospitalId == hospitalId.trim() &&
           entryDate == date.trim() &&
           entryCaseNo == patientId.trim()) {
         return _normalizeRecord(entry);

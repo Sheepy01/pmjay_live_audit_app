@@ -250,9 +250,13 @@ class PdfService {
             children: [
               _buildLabelValueRow(
                 'HOSPITAL NAME',
-                data['hospital_name'],
+                (data['hospital_name'] ?? '').toString().isNotEmpty
+                    ? data['hospital_name']
+                    : data['hospital_name_manual'],
                 'HOSPITAL ID',
-                data['hospital_id'],
+                (data['hospital_id'] ?? '').toString().isNotEmpty
+                    ? data['hospital_id']
+                    : data['hospital_id_manual'],
               ),
               _buildLabelValueRow(
                 'CASE NO',
@@ -1283,9 +1287,13 @@ class PdfService {
             children: [
               _buildLabelValueRow(
                 'HOSPITAL NAME',
-                data['hospital_name'],
+                (data['hospital_name'] ?? '').toString().isNotEmpty
+                    ? data['hospital_name']
+                    : data['hospital_name_manual'],
                 'HOSPITAL ID',
-                data['hospital_id'],
+                (data['hospital_id'] ?? '').toString().isNotEmpty
+                    ? data['hospital_id']
+                    : data['hospital_id_manual'],
               ),
               _buildLabelValueRow('CASE NO', na(), 'CARD NO', na()),
               _buildLabelValueRow(
